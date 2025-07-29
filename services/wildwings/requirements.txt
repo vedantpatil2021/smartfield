@@ -1,9 +1,9 @@
 fastapi==0.111.1
 uvicorn==0.30.3
 toml==0.10.2
-pillow==10.4.0
-opencv-python==4.10.0
-ultralytics==8.2.65
+pillow
+opencv-python
+ultralytics
 requests==2.32.3
 numpy==1.24.3
 torch==2.4.0
