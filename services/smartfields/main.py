@@ -15,7 +15,9 @@ import uvicorn
 from pathlib import Path
 
 # Load configuration
-config_path = Path(__file__).parent.parent.parent / "config.toml"
+config_path = Path("/app/config.toml")
+if not config_path.exists():
+    config_path = Path(__file__).parent.parent.parent / "config.toml"
 config = toml.load(config_path)
 smartfields_config = config["smartfields"]
 
