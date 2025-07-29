@@ -1,13 +1,22 @@
-FROM python:3.11-slim
+FROM python:3.11-alpine
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y \
+# Install lightweight dependencies and build tools
+RUN apk add --no-cache \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    gcc \
+    g++ \
+    make \
+    musl-dev \
+    linux-headers \
+    libffi-dev \
+    openssl-dev \
+    && pip install --upgrade pip setuptools wheel
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN python -m pip install --no-cache-dir --upgrade pip \
+    && python -m pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
