@@ -1,0 +1,4 @@
+pillow
+SoftwarePilot
+opencv-python
+ultralytics

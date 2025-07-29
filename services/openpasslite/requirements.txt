@@ -1,0 +1,7 @@
+fastapi==0.104.1
+uvicorn==0.24.0
+toml==0.10.2
+parrot-olympe
+opencv-python
+requests==2.32.3
+pathlib2==2.3.7
