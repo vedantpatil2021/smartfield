@@ -67,7 +67,7 @@ RUN mkdir -p /app/logs /app/mission
 COPY requirements.txt .
 
 # Install other Python dependencies first
-RUN pip3 install --no-cache-dir fastapi uvicorn[standard] toml python-multipart
+RUN pip3 install --no-cache-dir fastapi uvicorn[standard] toml python-multipart opencv-python
 
 # Install olympe separately with verbose output to debug any issues
 RUN pip3 install --no-cache-dir --verbose parrot-olympe>=7.7.0
