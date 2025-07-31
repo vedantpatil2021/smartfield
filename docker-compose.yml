@@ -25,7 +25,7 @@ services:
 
   smartfield:
     build:
-      context: ./services/smartfield
+      context: ./services/smartfields
       dockerfile: Dockerfile
     container_name: smartfield
     ports:
