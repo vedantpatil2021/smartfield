@@ -1,77 +1,3 @@
-# version: '3.8'
-
-# services:
-#   openpasslite:
-#     build:
-#       context: ./services/openpasslite
-#       dockerfile: Dockerfile
-#     container_name: openpasslite-service
-#     ports:
-#       - "2177:2177"
-#     volumes:
-#       - ./config.toml:/app/config.toml:ro
-#       - ./logs:/app/logs
-#     environment:
-#       - PYTHONPATH=/app
-#     networks:
-#       - smartfield-network
-#     restart: unless-stopped
-#     healthcheck:
-#       test: ["CMD", "curl", "-f", "http://localhost:2177/"]
-#       interval: 30s
-#       timeout: 10s
-#       retries: 3
-
-#   smartfields:
-#     build:
-#       context: ./services/smartfields
-#       dockerfile: Dockerfile
-#     container_name: smartfields-service
-#     ports:
-#       - "2188:2188"
-#     volumes:
-#       - ./config.toml:/app/config.toml:ro
-#       - ./logs:/app/logs
-#     environment:
-#       - PYTHONPATH=/app
-#     networks:
-#       - smartfield-network
-#     restart: unless-stopped
-#     healthcheck:
-#       test: ["CMD", "curl", "-f", "http://localhost:2188/"]
-#       interval: 30s
-#       timeout: 10s
-#       retries: 3
-
-#   wildwings:
-#     build:
-#       context: ./services/wildwings
-#       dockerfile: Dockerfile
-#     container_name: wildwings-service
-#     ports:
-#       - "2199:2199"
-#     volumes:
-#       - ./config.toml:/app/config.toml:ro
-#       - ./logs:/app/logs
-#     environment:
-#       - PYTHONPATH=/app
-#     networks:
-#       - smartfield-network
-#     restart: unless-stopped
-#     healthcheck:
-#       test: ["CMD", "curl", "-f", "http://localhost:2199/"]
-#       interval: 30s
-#       timeout: 10s
-#       retries: 3
-
-# networks:
-#   smartfield-network:
-#     driver: bridge
-
-# volumes:
-#   logs:
-#     driver: local
-
 version: '3.8'
 
 services:
@@ -79,9 +5,31 @@ services:
     build:
       context: ./services/openpasslite
       dockerfile: Dockerfile
-    container_name: openpasslite-drone-service
+    container_name: openpasslite
     ports:
       - "2177:2177"
+    volumes:
+      - ./config.toml:/app/config.toml:ro
+      - ./logs:/app/logs
+      - ./mission:/app/mission:ro
+    environment:
+      - PYTHONPATH=/app
+    networks:
+      - smartfield-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:2177/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  smartfield:
+    build:
+      context: ./services/smartfield
+      dockerfile: Dockerfile
+    container_name: smartfield
+    ports:
+      - "2188:2188"
     volumes:
       - ./config.toml:/app/config.toml:ro
       - ./logs:/app/logs
