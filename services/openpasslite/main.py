@@ -105,22 +105,31 @@ async def get_missions():
     
     try:
         mission_dir = Path(__file__).parent / "mission"
+        logger.info(f"Looking for missions in: {mission_dir}")
+        logger.info(f"Mission directory exists: {mission_dir.exists()}")
         
         if not mission_dir.exists():
             logger.error("Mission directory not found")
             return []
         
+        # List all files in mission directory for debugging
+        all_files = list(mission_dir.iterdir())
+        logger.info(f"All files in mission directory: {[f.name for f in all_files]}")
+        
         missions = []
         for file in mission_dir.glob("*.py"):
+            logger.info(f"Found Python file: {file.name}")
             if file.name != "__init__.py":
                 mission_name = file.stem
                 missions.append(mission_name)
+                logger.info(f"Added mission: {mission_name}")
         
         logger.info(f"Found {len(missions)} missions: {missions}")
         return sorted(missions)
         
     except Exception as e:
         logger.error(f"Failed to get missions: {str(e)}")
+        logger.exception("Full traceback:")
         return ["takeoff", "land"]  # fallback missions
 
 @app.post("/start_mission")
