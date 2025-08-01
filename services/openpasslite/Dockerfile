@@ -79,7 +79,10 @@ ENV PYTHONPATH=/app:$PYTHONPATH
 # Copy mission directory first
 COPY mission/ /app/mission/
 
-# Copy application code
+# Debug: List what was copied
+RUN ls -la /app/mission/
+
+# Copy application code  
 COPY . .
 
 # Create a non-root user for security
