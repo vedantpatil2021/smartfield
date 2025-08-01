@@ -76,6 +76,9 @@ RUN pip3 install --no-cache-dir --verbose parrot-olympe>=7.7.0
 ENV LD_LIBRARY_PATH=/usr/local/lib/python3.10/dist-packages/olympe_deps:/usr/local/lib:$LD_LIBRARY_PATH
 ENV PYTHONPATH=/app:$PYTHONPATH
 
+# Copy mission directory first
+COPY mission/ /app/mission/
+
 # Copy application code
 COPY . .
 
