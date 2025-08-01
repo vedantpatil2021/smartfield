@@ -77,10 +77,7 @@ ENV LD_LIBRARY_PATH=/usr/local/lib/python3.10/dist-packages/olympe_deps:/usr/loc
 ENV PYTHONPATH=/app:$PYTHONPATH
 
 # Copy mission directory first
-COPY mission/ /app/mission/
-
-# Debug: List what was copied
-RUN ls -la /app/mission/
+COPY services/openpasslite/mission/ /app/mission/
 
 # Copy application code  
 COPY . .
