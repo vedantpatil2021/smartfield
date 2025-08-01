@@ -6,6 +6,8 @@ import importlib
 from typing import Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
 import uvicorn
 from pathlib import Path
@@ -88,8 +90,37 @@ app.add_middleware(
 
 @app.get("/")
 async def root():
-    logger.info("Root endpoint accessed")
+    """Serve the main HTML interface"""
+    logger.info("Root endpoint accessed - serving index.html")
+    html_path = Path(__file__).parent / "index.html"
+    if html_path.exists():
+        return FileResponse(html_path)
     return {"message": "OpenPassLite Service", "status": "running"}
+
+@app.get("/missions")
+async def get_missions():
+    """Get list of available missions from mission folder"""
+    logger.info("Missions endpoint accessed")
+    
+    try:
+        mission_dir = Path(__file__).parent / "mission"
+        
+        if not mission_dir.exists():
+            logger.error("Mission directory not found")
+            return []
+        
+        missions = []
+        for file in mission_dir.glob("*.py"):
+            if file.name != "__init__.py":
+                mission_name = file.stem
+                missions.append(mission_name)
+        
+        logger.info(f"Found {len(missions)} missions: {missions}")
+        return sorted(missions)
+        
+    except Exception as e:
+        logger.error(f"Failed to get missions: {str(e)}")
+        return ["takeoff", "land"]  # fallback missions
 
 @app.post("/start_mission")
 async def start_mission(name: str, lat: Optional[str] = None, long: Optional[str] = None):
