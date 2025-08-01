@@ -92,7 +92,7 @@ app.add_middleware(
 async def root():
     """Serve the main HTML interface"""
     logger.info("Root endpoint accessed - serving index.html")
-    html_path = Path(__file__).parent / "index.html"
+    html_path = Path(__file__).parent / "services/openpasslite/index.html"
     if html_path.exists():
         return FileResponse(html_path, media_type="text/html")
     return {"message": "OpenPassLite Service", "status": "running"}
