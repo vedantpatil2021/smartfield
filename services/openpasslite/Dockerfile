@@ -61,7 +61,7 @@ RUN python3 -m pip install --upgrade pip setuptools wheel
 WORKDIR /app
 
 # Create necessary directories
-RUN mkdir -p /app/logs /app/mission
+RUN mkdir -p /app/logs
 
 # Copy requirements first for better Docker layer caching
 COPY requirements.txt .
