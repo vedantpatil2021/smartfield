@@ -76,14 +76,11 @@ RUN pip3 install --no-cache-dir --verbose parrot-olympe>=7.7.0
 ENV LD_LIBRARY_PATH=/usr/local/lib/python3.10/dist-packages/olympe_deps:/usr/local/lib:$LD_LIBRARY_PATH
 ENV PYTHONPATH=/app:$PYTHONPATH
 
-# Copy mission directory explicitly
-COPY mission/ /app/mission/
-
-# Debug: List what was copied to verify
-RUN ls -la /app/mission/ && echo "Mission files:" && find /app/mission -name "*.py"
-
 # Copy application code  
 COPY . .
+
+# Ensure mission directory has correct permissions
+RUN ls -la /app/ && echo "Mission directory contents:" && ls -la /app/mission/ || echo "Mission directory not found"
 
 # Create a non-root user for security
 RUN useradd -m -u 1000 droneuser && \
