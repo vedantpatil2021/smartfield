@@ -1,0 +1,5 @@
+parameter,value,unit,description
+takeoff_altitude,10,meters,Initial takeoff altitude
+hover_time,5,seconds,Time to hover after takeoff
+safety_margin,2,meters,Safety margin from obstacles
+max_ascent_speed,3,m/s,Maximum ascent speed during takeoff

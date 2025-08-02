@@ -1,0 +1,19 @@
+{
+    "mission_name": "takeoff",
+    "mission_type": "basic_flight",
+    "flight_parameters": {
+        "hover_altitude": 10,
+        "takeoff_speed": "normal",
+        "hover_duration": 5
+    },
+    "safety": {
+        "min_battery": 50,
+        "max_wind_speed": 8,
+        "gps_accuracy_threshold": 3
+    },
+    "checks": {
+        "pre_flight": true,
+        "gps_lock": true,
+        "battery_check": true
+    }
+}

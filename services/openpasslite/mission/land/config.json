@@ -1,0 +1,28 @@
+{
+    "mission_name": "landing",
+    "mission_type": "basic_flight",
+    "landing_parameters": {
+        "descent_speed": "slow",
+        "landing_mode": "controlled",
+        "precision_landing": false,
+        "hover_before_land": true,
+        "hover_duration": 3
+    },
+    "safety": {
+        "min_battery": 10,
+        "ground_check": true,
+        "wind_threshold": 12,
+        "emergency_landing": false
+    },
+    "pre_landing_checks": {
+        "battery_status": true,
+        "gps_accuracy": true,
+        "landing_zone_clear": true,
+        "system_health": true
+    },
+    "post_landing": {
+        "motors_off": true,
+        "system_shutdown": false,
+        "data_sync": true
+    }
+}
