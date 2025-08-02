@@ -1,0 +1,19 @@
+{
+  "missions": [
+    {
+      "name": "takeoff",
+      "description": "Execute drone takeoff sequence",
+      "status": "ready to use"
+    },
+    {
+      "name": "land",
+      "description": "Execute drone landing sequence", 
+      "status": "ready to use"
+    },
+    {
+      "name": "orthomosaic",
+      "description": "Capture orthomosaic imagery for mapping",
+      "status": "testing"
+    }
+  ]
+}

@@ -16,14 +16,12 @@
             background: #0a0a0a;
             color: #ffffff;
             min-height: 100vh;
-            overflow-x: hidden;
+            padding: 2rem;
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1000px;
             margin: 0 auto;
-            padding: 2rem;
-            min-height: 100vh;
         }
 
         .header {
@@ -37,17 +35,10 @@
             font-size: 2.5rem;
             font-weight: 300;
             letter-spacing: 3px;
-            margin-bottom: 0.5rem;
             text-transform: uppercase;
         }
 
-        .subtitle {
-            font-size: 1rem;
-            color: #888;
-            letter-spacing: 1px;
-        }
-
-        .status-bar {
+        .status {
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -57,28 +48,16 @@
             background: #111;
         }
 
-        .status-indicator {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
         .status-dot {
             width: 12px;
             height: 12px;
             border-radius: 50%;
             background: #4CAF50;
-            animation: pulse 2s infinite;
+            margin-right: 0.5rem;
         }
 
         .status-dot.disconnected {
             background: #f44336;
-        }
-
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
-            100% { opacity: 1; }
         }
 
         .missions-grid {
@@ -92,36 +71,18 @@
             border: 2px solid #333;
             background: #111;
             padding: 1.5rem;
-            transition: all 0.3s ease;
             cursor: pointer;
-            position: relative;
-            overflow: hidden;
+            transition: all 0.3s ease;
         }
 
         .mission-card:hover {
             border-color: #666;
             background: #1a1a1a;
-            transform: translateY(-2px);
         }
 
         .mission-card.selected {
             border-color: #ffffff;
             background: #222;
-        }
-
-        .mission-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 2px;
-            background: linear-gradient(90deg, transparent, #ffffff, transparent);
-            transition: left 0.6s ease;
-        }
-
-        .mission-card:hover::before {
-            left: 100%;
         }
 
         .mission-name {
@@ -135,14 +96,33 @@
         .mission-description {
             font-size: 0.9rem;
             color: #ccc;
-            line-height: 1.4;
+            margin-bottom: 0.5rem;
+        }
+
+        .mission-status {
+            font-size: 0.8rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 3px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-ready {
+            background: #1a4a1a;
+            color: #4CAF50;
+            border: 1px solid #4CAF50;
+        }
+
+        .status-testing {
+            background: #4a3a1a;
+            color: #ff9800;
+            border: 1px solid #ff9800;
         }
 
         .controls {
             display: flex;
             gap: 1rem;
             justify-content: center;
-            margin-top: 2rem;
         }
 
         .btn {
@@ -156,11 +136,9 @@
             letter-spacing: 1px;
             cursor: pointer;
             transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
         }
 
-        .btn:hover {
+        .btn:hover:not(:disabled) {
             border-color: #ffffff;
         }
 
@@ -169,42 +147,19 @@
             cursor: not-allowed;
         }
 
-        .btn-start {
-            border-color: #4CAF50;
-        }
-
         .btn-start:hover:not(:disabled) {
             background: #4CAF50;
+            border-color: #4CAF50;
             color: #000;
-        }
-
-        .btn-stop {
-            border-color: #f44336;
         }
 
         .btn-stop:hover:not(:disabled) {
             background: #f44336;
+            border-color: #f44336;
             color: #000;
         }
 
-        .loading {
-            display: none;
-            text-align: center;
-            margin: 2rem 0;
-        }
-
-        .loading-text {
-            font-size: 1.1rem;
-            letter-spacing: 2px;
-            animation: blink 1.5s infinite;
-        }
-
-        @keyframes blink {
-            0%, 50% { opacity: 1; }
-            51%, 100% { opacity: 0.3; }
-        }
-
-        .error-message {
+        .error {
             background: #2a1a1a;
             border: 2px solid #f44336;
             padding: 1rem;
@@ -213,31 +168,10 @@
             display: none;
         }
 
-        .no-missions {
+        .loading {
             text-align: center;
-            padding: 3rem;
-            color: #666;
-            font-size: 1.2rem;
-            border: 2px dashed #333;
-        }
-
-        @media (max-width: 768px) {
-            .container {
-                padding: 1rem;
-            }
-            
-            .title {
-                font-size: 2rem;
-            }
-            
-            .missions-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .controls {
-                flex-direction: column;
-                align-items: center;
-            }
+            padding: 2rem;
+            display: none;
         }
     </style>
 </head>
@@ -245,30 +179,20 @@
     <div class="container">
         <div class="header">
             <h1 class="title">OpenPassLite</h1>
-            <p class="subtitle">Mission Control Interface</p>
         </div>
 
-        <div class="status-bar">
-            <div class="status-indicator">
-                <div class="status-dot" id="connectionStatus"></div>
-                <span id="connectionText">Connected</span>
+        <div class="status">
+            <div style="display: flex; align-items: center;">
+                <div class="status-dot" id="statusDot"></div>
+                <span id="connectionStatus">Connected</span>
             </div>
-            <div class="status-indicator">
-                <span id="missionStatus">Status: Idle</span>
-            </div>
+            <span id="missionStatus">Status: Idle</span>
         </div>
 
-        <div class="loading" id="loadingIndicator">
-            <div class="loading-text">LOADING MISSIONS...</div>
-        </div>
+        <div class="loading" id="loading">Loading missions...</div>
+        <div class="error" id="error"></div>
 
-        <div class="error-message" id="errorMessage"></div>
-
-        <div class="missions-grid" id="missionsGrid">
-            <div class="no-missions" id="noMissions">
-                No missions available
-            </div>
-        </div>
+        <div class="missions-grid" id="missionsGrid"></div>
 
         <div class="controls">
             <button class="btn btn-start" id="startBtn" disabled>Start Mission</button>
@@ -278,101 +202,83 @@
 
     <script>
         let selectedMission = null;
-        let isConnected = false;
         let missions = [];
 
         const elements = {
+            statusDot: document.getElementById('statusDot'),
             connectionStatus: document.getElementById('connectionStatus'),
-            connectionText: document.getElementById('connectionText'),
             missionStatus: document.getElementById('missionStatus'),
-            loadingIndicator: document.getElementById('loadingIndicator'),
-            errorMessage: document.getElementById('errorMessage'),
+            loading: document.getElementById('loading'),
+            error: document.getElementById('error'),
             missionsGrid: document.getElementById('missionsGrid'),
-            noMissions: document.getElementById('noMissions'),
             startBtn: document.getElementById('startBtn'),
             stopBtn: document.getElementById('stopBtn')
         };
 
-        function updateConnectionStatus(connected) {
-            isConnected = connected;
-            elements.connectionStatus.className = `status-dot ${connected ? '' : 'disconnected'}`;
-            elements.connectionText.textContent = connected ? 'Connected' : 'Disconnected';
-        }
-
         function showError(message) {
-            elements.errorMessage.textContent = message;
-            elements.errorMessage.style.display = 'block';
-            setTimeout(() => {
-                elements.errorMessage.style.display = 'none';
-            }, 5000);
+            elements.error.textContent = message;
+            elements.error.style.display = 'block';
+            setTimeout(() => elements.error.style.display = 'none', 5000);
         }
 
-        function showLoading(show) {
-            elements.loadingIndicator.style.display = show ? 'block' : 'none';
-        }
-
-        function getMissionDescription(missionName) {
-            const descriptions = {
-                'takeoff': 'Execute drone takeoff sequence',
-                'land': 'Execute drone landing sequence',
-                'orthomosaic': 'Capture orthomosaic imagery'
-            };
-            return descriptions[missionName] || 'Execute mission protocol';
+        function updateStatus(connected, missionStatus = 'Idle') {
+            elements.statusDot.className = `status-dot ${connected ? '' : 'disconnected'}`;
+            elements.connectionStatus.textContent = connected ? 'Connected' : 'Disconnected';
+            elements.missionStatus.textContent = `Status: ${missionStatus}`;
         }
 
         function renderMissions() {
+            elements.missionsGrid.innerHTML = '';
+            
             if (missions.length === 0) {
-                elements.noMissions.style.display = 'block';
-                elements.missionsGrid.innerHTML = '';
-                elements.missionsGrid.appendChild(elements.noMissions);
+                elements.missionsGrid.innerHTML = '<div style="text-align: center; padding: 2rem; color: #666;">No missions available</div>';
                 return;
             }
 
-            elements.noMissions.style.display = 'none';
-            elements.missionsGrid.innerHTML = '';
-
             missions.forEach(mission => {
-                const missionCard = document.createElement('div');
-                missionCard.className = 'mission-card';
-                missionCard.dataset.mission = mission;
+                const card = document.createElement('div');
+                card.className = 'mission-card';
                 
-                missionCard.innerHTML = `
-                    <div class="mission-name">${mission}</div>
-                    <div class="mission-description">${getMissionDescription(mission)}</div>
+                // Handle both old format (strings) and new format (objects)
+                const missionName = typeof mission === 'string' ? mission : mission.name;
+                const missionDesc = typeof mission === 'string' ? `Execute ${mission} mission` : mission.description;
+                const missionStatus = typeof mission === 'string' ? 'ready to use' : mission.status;
+                
+                const statusClass = missionStatus === 'ready to use' ? 'status-ready' : 'status-testing';
+                
+                card.innerHTML = `
+                    <div class="mission-name">${missionName}</div>
+                    <div class="mission-description">${missionDesc}</div>
+                    <div class="mission-status ${statusClass}">${missionStatus}</div>
                 `;
-
-                missionCard.addEventListener('click', () => selectMission(mission, missionCard));
-                elements.missionsGrid.appendChild(missionCard);
+                
+                card.addEventListener('click', () => selectMission(missionName, card));
+                elements.missionsGrid.appendChild(card);
             });
         }
 
         function selectMission(missionName, cardElement) {
-            document.querySelectorAll('.mission-card').forEach(card => {
-                card.classList.remove('selected');
-            });
-            
+            document.querySelectorAll('.mission-card').forEach(card => card.classList.remove('selected'));
             cardElement.classList.add('selected');
             selectedMission = missionName;
             elements.startBtn.disabled = false;
         }
 
         async function fetchMissions() {
-            showLoading(true);
+            elements.loading.style.display = 'block';
             try {
                 const response = await fetch('/missions');
                 if (!response.ok) throw new Error('Failed to fetch missions');
                 
                 missions = await response.json();
-                updateConnectionStatus(true);
+                updateStatus(true);
                 renderMissions();
             } catch (error) {
-                console.error('Error fetching missions:', error);
-                updateConnectionStatus(false);
-                showError('Failed to load missions. Check connection.');
-                missions = [];
-                renderMissions();
+                console.error('Error:', error);
+                updateStatus(false);
+                showError('Failed to load missions');
             } finally {
-                showLoading(false);
+                elements.loading.style.display = 'none';
             }
         }
 
@@ -380,14 +286,12 @@
             if (!selectedMission) return;
 
             elements.startBtn.disabled = true;
-            elements.missionStatus.textContent = `Status: Starting ${selectedMission}...`;
+            updateStatus(true, `Starting ${selectedMission}...`);
 
             try {
                 const response = await fetch('/start_mission', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                     body: `name=${encodeURIComponent(selectedMission)}`
                 });
 
@@ -396,43 +300,39 @@
                     throw new Error(error.detail || 'Failed to start mission');
                 }
 
-                const result = await response.json();
-                elements.missionStatus.textContent = `Status: Running ${selectedMission}`;
+                updateStatus(true, `Running ${selectedMission}`);
                 elements.stopBtn.disabled = false;
                 
             } catch (error) {
-                console.error('Error starting mission:', error);
+                console.error('Error:', error);
                 showError(error.message);
-                elements.missionStatus.textContent = 'Status: Error';
+                updateStatus(true, 'Error');
                 elements.startBtn.disabled = false;
             }
         }
 
         async function stopMission() {
             elements.stopBtn.disabled = true;
-            elements.missionStatus.textContent = 'Status: Stopping...';
+            updateStatus(true, 'Stopping...');
 
             try {
-                const response = await fetch('/stop_mission', {
-                    method: 'POST'
-                });
-
+                const response = await fetch('/stop_mission', { method: 'POST' });
                 if (!response.ok) {
                     const error = await response.json();
                     throw new Error(error.detail || 'Failed to stop mission');
                 }
 
-                elements.missionStatus.textContent = 'Status: Idle';
+                updateStatus(true, 'Idle');
                 elements.startBtn.disabled = selectedMission ? false : true;
                 
             } catch (error) {
-                console.error('Error stopping mission:', error);
+                console.error('Error:', error);
                 showError(error.message);
                 elements.stopBtn.disabled = false;
             }
         }
 
-        async function checkMissionStatus() {
+        async function checkStatus() {
             try {
                 const response = await fetch('/mission_status');
                 if (!response.ok) return;
@@ -441,32 +341,31 @@
                 
                 switch (status.status) {
                     case 'running':
-                        elements.missionStatus.textContent = `Status: Mission Running`;
+                        updateStatus(true, 'Mission Running');
                         elements.startBtn.disabled = true;
                         elements.stopBtn.disabled = false;
                         break;
                     case 'stopping':
-                        elements.missionStatus.textContent = `Status: Stopping...`;
+                        updateStatus(true, 'Stopping...');
                         elements.startBtn.disabled = true;
                         elements.stopBtn.disabled = true;
                         break;
                     case 'idle':
-                        elements.missionStatus.textContent = `Status: Idle`;
+                        updateStatus(true, 'Idle');
                         elements.startBtn.disabled = selectedMission ? false : true;
                         elements.stopBtn.disabled = true;
                         break;
                 }
             } catch (error) {
-                console.error('Error checking mission status:', error);
+                console.error('Status check error:', error);
             }
         }
 
         elements.startBtn.addEventListener('click', startMission);
         elements.stopBtn.addEventListener('click', stopMission);
 
-        // Initialize
         fetchMissions();
-        setInterval(checkMissionStatus, 2000);
+        setInterval(checkStatus, 2000);
         setInterval(fetchMissions, 30000);
     </script>
 </body>

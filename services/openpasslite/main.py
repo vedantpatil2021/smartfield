@@ -100,37 +100,65 @@ async def root():
 
 @app.get("/missions")
 async def get_missions():
-    """Get list of available missions from mission folder"""
+    """Get list of available missions with metadata from JSON file"""
     logger.info("Missions endpoint accessed")
     
     try:
+        import json
+        
+        # Load missions from JSON file
+        missions_file = Path(__file__).parent / "missions.json"
+        logger.info(f"Looking for missions.json at: {missions_file}")
+        
+        if not missions_file.exists():
+            logger.error("missions.json not found, falling back to directory scan")
+            return await get_missions_from_directory()
+        
+        with open(missions_file, 'r') as f:
+            missions_data = json.load(f)
+        
+        # Verify that mission files actually exist
         mission_dir = Path(__file__).parent / "mission"
-        logger.info(f"Looking for missions in: {mission_dir}")
-        logger.info(f"Mission directory exists: {mission_dir.exists()}")
+        available_missions = []
+        
+        for mission in missions_data.get("missions", []):
+            mission_file = mission_dir / f"{mission['name']}.py"
+            if mission_file.exists():
+                available_missions.append(mission)
+                logger.info(f"Mission '{mission['name']}' found with status: {mission['status']}")
+            else:
+                logger.warning(f"Mission file not found for: {mission['name']}")
+        
+        logger.info(f"Found {len(available_missions)} valid missions")
+        return available_missions
+        
+    except Exception as e:
+        logger.error(f"Failed to get missions from JSON: {str(e)}")
+        logger.exception("Full traceback:")
+        return await get_missions_from_directory()
+
+async def get_missions_from_directory():
+    """Fallback method to get missions from directory scan"""
+    try:
+        mission_dir = Path(__file__).parent / "mission"
         
         if not mission_dir.exists():
-            logger.error("Mission directory not found")
             return []
-        
-        # List all files in mission directory for debugging
-        all_files = list(mission_dir.iterdir())
-        logger.info(f"All files in mission directory: {[f.name for f in all_files]}")
         
         missions = []
         for file in mission_dir.glob("*.py"):
-            logger.info(f"Found Python file: {file.name}")
             if file.name != "__init__.py":
-                mission_name = file.stem
-                missions.append(mission_name)
-                logger.info(f"Added mission: {mission_name}")
+                missions.append({
+                    "name": file.stem,
+                    "description": f"Execute {file.stem} mission",
+                    "status": "ready to use"
+                })
         
-        logger.info(f"Found {len(missions)} missions: {missions}")
-        return sorted(missions)
+        return sorted(missions, key=lambda x: x['name'])
         
     except Exception as e:
-        logger.error(f"Failed to get missions: {str(e)}")
-        logger.exception("Full traceback:")
-        return ["takeoff", "land"]  # fallback missions
+        logger.error(f"Failed directory fallback: {str(e)}")
+        return []
 
 @app.post("/start_mission")
 async def start_mission(name: str, lat: Optional[str] = None, long: Optional[str] = None):
