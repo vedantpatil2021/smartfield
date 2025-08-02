@@ -6,8 +6,6 @@ import importlib
 from typing import Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
 import uvicorn
 from pathlib import Path
@@ -90,12 +88,8 @@ app.add_middleware(
 
 @app.get("/")
 async def root():
-    """Serve the main HTML interface"""
-    logger.info("Root endpoint accessed - serving index.html")
-    html_path = Path(__file__).parent / "index.html"
-    logger.info(html_path)
-    if html_path.exists():
-        return FileResponse(html_path, media_type="text/html")
+    """Root endpoint"""
+    logger.info("Root endpoint accessed")
     return {"message": "OpenPassLite Service", "status": "running"}
 
 @app.get("/missions")
