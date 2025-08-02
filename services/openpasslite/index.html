@@ -173,6 +173,78 @@
             padding: 2rem;
             display: none;
         }
+
+        .logs-popup {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            z-index: 1000;
+        }
+
+        .logs-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #111;
+            border: 2px solid #333;
+            width: 80%;
+            max-width: 800px;
+            height: 70%;
+            padding: 1rem;
+        }
+
+        .logs-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #333;
+        }
+
+        .logs-title {
+            font-size: 1.2rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .close-btn {
+            background: transparent;
+            border: 1px solid #666;
+            color: #fff;
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        .close-btn:hover {
+            background: #333;
+        }
+
+        .logs-container {
+            height: calc(100% - 3rem);
+            overflow-y: auto;
+            background: #0a0a0a;
+            border: 1px solid #333;
+            padding: 1rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.8rem;
+            line-height: 1.4;
+        }
+
+        .log-line {
+            margin-bottom: 0.2rem;
+            word-wrap: break-word;
+        }
+
+        .log-line:hover {
+            background: #222;
+        }
     </style>
 </head>
 <body>
@@ -200,6 +272,19 @@
         </div>
     </div>
 
+    <!-- Logs Popup -->
+    <div class="logs-popup" id="logsPopup">
+        <div class="logs-content">
+            <div class="logs-header">
+                <div class="logs-title">Mission Logs</div>
+                <button class="close-btn" id="closeLogsBtn">Close</button>
+            </div>
+            <div class="logs-container" id="logsContainer">
+                Loading logs...
+            </div>
+        </div>
+    </div>
+
     <script>
         let selectedMission = null;
         let missions = [];
@@ -212,7 +297,10 @@
             error: document.getElementById('error'),
             missionsGrid: document.getElementById('missionsGrid'),
             startBtn: document.getElementById('startBtn'),
-            stopBtn: document.getElementById('stopBtn')
+            stopBtn: document.getElementById('stopBtn'),
+            logsPopup: document.getElementById('logsPopup'),
+            logsContainer: document.getElementById('logsContainer'),
+            closeLogsBtn: document.getElementById('closeLogsBtn')
         };
 
         function showError(message) {
@@ -282,6 +370,46 @@
             }
         }
 
+        async function fetchLogs() {
+            try {
+                const response = await fetch('/logs?lines=200');
+                if (!response.ok) throw new Error('Failed to fetch logs');
+                
+                const data = await response.json();
+                const logs = data.logs || [];
+                
+                elements.logsContainer.innerHTML = '';
+                
+                if (logs.length === 0) {
+                    elements.logsContainer.innerHTML = '<div class="log-line">No logs available</div>';
+                    return;
+                }
+                
+                logs.forEach(log => {
+                    const logLine = document.createElement('div');
+                    logLine.className = 'log-line';
+                    logLine.textContent = log;
+                    elements.logsContainer.appendChild(logLine);
+                });
+                
+                // Auto-scroll to bottom
+                elements.logsContainer.scrollTop = elements.logsContainer.scrollHeight;
+                
+            } catch (error) {
+                console.error('Error fetching logs:', error);
+                elements.logsContainer.innerHTML = '<div class="log-line">Error loading logs</div>';
+            }
+        }
+
+        function showLogsPopup() {
+            elements.logsPopup.style.display = 'block';
+            fetchLogs();
+        }
+
+        function hideLogsPopup() {
+            elements.logsPopup.style.display = 'none';
+        }
+
         async function startMission() {
             if (!selectedMission) return;
 
@@ -302,6 +430,9 @@
 
                 updateStatus(true, `Running ${selectedMission}`);
                 elements.stopBtn.disabled = false;
+                
+                // Show logs popup when mission starts
+                showLogsPopup();
                 
             } catch (error) {
                 console.error('Error:', error);
@@ -363,10 +494,31 @@
 
         elements.startBtn.addEventListener('click', startMission);
         elements.stopBtn.addEventListener('click', stopMission);
+        elements.closeLogsBtn.addEventListener('click', hideLogsPopup);
+        
+        // Close popup when clicking outside
+        elements.logsPopup.addEventListener('click', (e) => {
+            if (e.target === elements.logsPopup) {
+                hideLogsPopup();
+            }
+        });
+
+        // Auto-refresh logs when popup is open
+        let logsInterval = null;
+        
+        function startLogsRefresh() {
+            if (logsInterval) clearInterval(logsInterval);
+            logsInterval = setInterval(() => {
+                if (elements.logsPopup.style.display === 'block') {
+                    fetchLogs();
+                }
+            }, 2000);
+        }
 
         fetchMissions();
         setInterval(checkStatus, 2000);
         setInterval(fetchMissions, 30000);
+        startLogsRefresh();
     </script>
 </body>
 </html>

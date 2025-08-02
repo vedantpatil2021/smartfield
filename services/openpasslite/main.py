@@ -238,6 +238,36 @@ async def mission_status():
         "stop_requested": stop_mission_flag.is_set()
     }
 
+@app.get("/logs")
+async def get_logs(lines: int = 100):
+    """Get recent log entries from openpasslite log file"""
+    logger.info(f"Logs endpoint accessed - requesting {lines} lines")
+    
+    try:
+        # Read from the log file configured in config.toml
+        log_file_path = openpasslite_config["logfile_path"]
+        logger.info(f"Reading logs from: {log_file_path}")
+        
+        if not Path(log_file_path).exists():
+            logger.warning(f"Log file not found at: {log_file_path}")
+            return {"logs": ["Log file not found"], "total_lines": 0}
+        
+        with open(log_file_path, 'r') as f:
+            all_lines = f.readlines()
+        
+        # Get the last 'lines' number of lines
+        recent_lines = all_lines[-lines:] if len(all_lines) > lines else all_lines
+        
+        # Clean up the lines and return as list
+        logs = [line.strip() for line in recent_lines if line.strip()]
+        
+        logger.info(f"Returning {len(logs)} log lines")
+        return {"logs": logs, "total_lines": len(all_lines)}
+        
+    except Exception as e:
+        logger.error(f"Failed to read logs: {str(e)}")
+        return {"logs": [f"Error reading logs: {str(e)}"], "total_lines": 0}
+
 if __name__ == "__main__":
     uvicorn.run(
         "main:app",
