@@ -151,7 +151,7 @@ async def get_missions_from_directory():
                 missions.append({
                     "name": file.stem,
                     "description": f"Execute {file.stem} mission",
-                    "status": "ready to use"
+                    "status": "Ready"
                 })
         
         return sorted(missions, key=lambda x: x['name'])

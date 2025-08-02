@@ -113,7 +113,7 @@
             border: 1px solid #4CAF50;
         }
 
-        .status-testing {
+        .status-beta {
             background: #4a3a1a;
             color: #ff9800;
             border: 1px solid #ff9800;
@@ -242,9 +242,9 @@
                 // Handle both old format (strings) and new format (objects)
                 const missionName = typeof mission === 'string' ? mission : mission.name;
                 const missionDesc = typeof mission === 'string' ? `Execute ${mission} mission` : mission.description;
-                const missionStatus = typeof mission === 'string' ? 'ready to use' : mission.status;
+                const missionStatus = typeof mission === 'string' ? 'Ready' : mission.status;
                 
-                const statusClass = missionStatus === 'ready to use' ? 'status-ready' : 'status-testing';
+                const statusClass = missionStatus === 'Ready' ? 'status-ready' : 'status-beta';
                 
                 card.innerHTML = `
                     <div class="mission-name">${missionName}</div>

@@ -3,17 +3,17 @@
     {
       "name": "takeoff",
       "description": "Execute drone takeoff sequence",
-      "status": "ready to use"
+      "status": "Ready"
     },
     {
       "name": "land",
       "description": "Execute drone landing sequence", 
-      "status": "ready to use"
+      "status": "Ready"
     },
     {
       "name": "orthomosaic",
       "description": "Capture orthomosaic imagery for mapping",
-      "status": "testing"
+      "status": "Beta"
     }
   ]
 }
