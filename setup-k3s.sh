@@ -85,14 +85,6 @@ if [ -d "./services/openpasslite/mission" ]; then
     echo "✅ OpenPassLite mission files copied"
 fi
 
-if [ -d "./mission" ]; then
-    cp -r ./mission/* /opt/smartfield/mission/
-    echo "✅ Mission files copied"
-elif [ ! -d "/opt/smartfield/mission" ]; then
-    echo "⚠️  Warning: No mission directory found. Creating empty directory."
-    mkdir -p /opt/smartfield/mission
-fi
-
 # Build Docker images
 echo "🐳 Building Docker images..."
 if command_exists docker; then
