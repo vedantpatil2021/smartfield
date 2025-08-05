@@ -124,6 +124,7 @@ spec:
       labels:
         app: openpasslite
     spec:
+      hostNetwork: true
       containers:
       - name: openpasslite
         image: smartfield/openpasslite:latest
@@ -132,6 +133,8 @@ spec:
         env:
         - name: PYTHONPATH
           value: "/app"
+        securityContext:
+          privileged: true
         volumeMounts:
         - name: config-volume
           mountPath: /app/config.toml
@@ -142,6 +145,10 @@ spec:
         - name: mission-volume
           mountPath: /app/mission
           readOnly: true
+        - name: dev-usb
+          mountPath: /dev/bus/usb
+        - name: dev
+          mountPath: /dev
         livenessProbe:
           httpGet:
             path: /
@@ -173,6 +180,12 @@ spec:
       - name: mission-volume
         hostPath:
           path: /opt/smartfield/services/openpasslite/mission
+      - name: dev-usb
+        hostPath:
+          path: /dev/bus/usb
+      - name: dev
+        hostPath:
+          path: /dev
       restartPolicy: Always
 ---
 apiVersion: v1
