@@ -212,6 +212,28 @@ spec:
     nodePort: 32177
   type: NodePort
 ---
+# OpenPassLite Ingress for Drone Communication
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: openpasslite-ingress
+  namespace: smartfield
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+spec:
+  rules:
+  - host: 192.168.53.1
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: openpasslite-service
+            port:
+              number: 2177
+---
 # SmartField Service
 apiVersion: apps/v1
 kind: Deployment
