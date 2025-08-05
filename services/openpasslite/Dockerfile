@@ -77,7 +77,6 @@ RUN apt-get update && apt-get install -y \
     wireless-tools \
     net-tools \
     iproute2 \
-    iputils-ping \
     && rm -rf /var/lib/apt/lists/*
 
 # Set library paths for native libraries
