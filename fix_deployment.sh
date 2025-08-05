@@ -62,7 +62,7 @@ sudo k3s kubectl delete pod -n smartfield -l app=wildwings
 
 # Apply the updated manifests with imagePullPolicy: Never
 echo -e "${BLUE}📝 Applying updated manifests...${NC}"
-sudo k3s kubectl apply -f k3s-base-manifests.yaml
+sudo k3s kubectl apply -f k3s-manifests.yaml
 
 # Create missing ConfigMaps
 echo -e "${BLUE}🗂️  Creating missing ConfigMaps...${NC}"

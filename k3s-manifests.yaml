@@ -108,7 +108,7 @@ spec:
       storage: 2Gi
   storageClassName: local-storage
 ---
-# OpenPassLite Service
+# OpenPassLite Service - SIMPLIFIED VERSION
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -124,27 +124,31 @@ spec:
       labels:
         app: openpasslite
     spec:
+      # Use host network for direct external communication
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
       containers:
       - name: openpasslite
         image: smartfield/openpasslite:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 2177
+          protocol: TCP
         env:
         - name: PYTHONPATH
           value: "/app"
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        # Run as root for hardware access (matching Docker setup)
         securityContext:
-          privileged: true
           runAsUser: 0
           runAsGroup: 0
+          privileged: true
           capabilities:
             add:
-              - SYS_RAWIO
               - NET_RAW
-              - SYS_ADMIN
               - NET_ADMIN
-              - NET_BIND_SERVICE
+              - SYS_RAWIO
         volumeMounts:
         - name: config-volume
           mountPath: /app/config.toml
@@ -159,6 +163,7 @@ spec:
           mountPath: /dev/bus/usb
         - name: dev
           mountPath: /dev
+        # Simplified health checks
         livenessProbe:
           httpGet:
             path: /
@@ -171,15 +176,18 @@ spec:
           httpGet:
             path: /
             port: 2177
-          initialDelaySeconds: 5
+          initialDelaySeconds: 10
           periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        # Increased resources for drone communication
         resources:
           requests:
-            memory: "256Mi"
-            cpu: "250m"
-          limits:
             memory: "512Mi"
             cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
       volumes:
       - name: config-volume
         configMap:
@@ -198,6 +206,7 @@ spec:
           path: /dev
       restartPolicy: Always
 ---
+# OpenPassLite Service - Single service approach
 apiVersion: v1
 kind: Service
 metadata:
@@ -210,24 +219,8 @@ spec:
   - port: 2177
     targetPort: 2177
     nodePort: 32177
-  type: NodePort
----
-# OpenPassLite LoadBalancer for Drone Communication
-apiVersion: v1
-kind: Service
-metadata:
-  name: openpasslite-drone-service
-  namespace: smartfield
-  annotations:
-    metallb.universe.tf/loadBalancer-ips: 192.168.53.1
-spec:
-  selector:
-    app: openpasslite
-  ports:
-  - port: 2177
-    targetPort: 2177
     protocol: TCP
-  type: LoadBalancer
+  type: NodePort
 ---
 # SmartField Service
 apiVersion: apps/v1
@@ -248,11 +241,14 @@ spec:
       containers:
       - name: smartfield
         image: smartfield/smartfield:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 2188
         env:
         - name: PYTHONPATH
           value: "/app"
+        - name: PYTHONUNBUFFERED
+          value: "1"
         volumeMounts:
         - name: config-volume
           mountPath: /app/config.toml
@@ -329,11 +325,14 @@ spec:
       containers:
       - name: wildwings
         image: smartfield/wildwings:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 2199
         env:
         - name: PYTHONPATH
           value: "/app"
+        - name: PYTHONUNBUFFERED
+          value: "1"
         volumeMounts:
         - name: config-volume
           mountPath: /app/config.toml

@@ -73,11 +73,11 @@ RUN pip3 install --no-cache-dir fastapi uvicorn[standard] toml python-multipart 
 RUN pip3 install --no-cache-dir --verbose parrot-olympe>=7.7.0
 
 # Install network tools for WiFi communication
-RUN apt-get update && apt-get install -y \
+RUN apt-get install -y \
     wireless-tools \
     net-tools \
     iproute2 \
-    && rm -rf /var/lib/apt/lists/*
+    iputils-ping
 
 # Set library paths for native libraries
 ENV LD_LIBRARY_PATH=/usr/local/lib/python3.10/dist-packages/olympe_deps:/usr/local/lib:$LD_LIBRARY_PATH
