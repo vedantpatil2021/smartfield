@@ -72,6 +72,13 @@ RUN pip3 install --no-cache-dir fastapi uvicorn[standard] toml python-multipart 
 # Install olympe separately with verbose output to debug any issues
 RUN pip3 install --no-cache-dir --verbose parrot-olympe>=7.7.0
 
+# Install network tools for WiFi communication
+RUN apt-get update && apt-get install -y \
+    wireless-tools \
+    net-tools \
+    iproute2 \
+    && rm -rf /var/lib/apt/lists/*
+
 # Set library paths for native libraries
 ENV LD_LIBRARY_PATH=/usr/local/lib/python3.10/dist-packages/olympe_deps:/usr/local/lib:$LD_LIBRARY_PATH
 ENV PYTHONPATH=/app:$PYTHONPATH
@@ -85,6 +92,9 @@ RUN ls -la /app/ && echo "Mission directory contents:" && ls -la /app/mission/ |
 # Create a non-root user for security
 RUN useradd -m -u 1000 droneuser && \
     chown -R droneuser:droneuser /app
+
+# Add network capabilities to Python for raw socket access
+RUN setcap cap_net_raw,cap_net_admin+eip /usr/bin/python3.10
 
 # Test olympe import before switching users
 RUN python3 -c "import olympe; print('Olympe imported successfully')"

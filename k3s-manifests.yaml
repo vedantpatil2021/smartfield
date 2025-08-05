@@ -143,6 +143,8 @@ spec:
               - SYS_RAWIO
               - NET_RAW
               - SYS_ADMIN
+              - NET_ADMIN
+              - NET_BIND_SERVICE
         volumeMounts:
         - name: config-volume
           mountPath: /app/config.toml
