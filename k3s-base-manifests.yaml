@@ -107,6 +107,7 @@ spec:
       containers:
       - name: openpasslite
         image: smartfield/openpasslite:latest
+        imagePullPolicy: Never
         ports:
         - containerPort: 2177
         env:
@@ -188,6 +189,7 @@ spec:
       containers:
       - name: smartfield
         image: smartfield/smartfield:latest
+        imagePullPolicy: Never
         ports:
         - containerPort: 2188
         env:
@@ -269,6 +271,7 @@ spec:
       containers:
       - name: wildwings
         image: smartfield/wildwings:latest
+        imagePullPolicy: Never
         ports:
         - containerPort: 2199
         env:
