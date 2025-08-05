@@ -84,7 +84,7 @@ END { if (buffer != "") print buffer }
 echo -e "${BLUE}🚀 Deploying SmartField application to K3s...${NC}"
 
 # Apply the manifests in order
-sudo k3s kubectl apply -f k3s-manifests-temp.yaml
+sudo k3s kubectl apply -f k3s-manifests-temp.yaml --validate=false
 sudo k3s kubectl apply -f smartfield-config-cm.yaml
 sudo k3s kubectl apply -f promtail-config-cm.yaml
 
