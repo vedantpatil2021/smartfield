@@ -125,6 +125,7 @@ spec:
         app: openpasslite
     spec:
       hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
       containers:
       - name: openpasslite
         image: smartfield/openpasslite:latest
