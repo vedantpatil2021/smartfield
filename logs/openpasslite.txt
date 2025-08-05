@@ -1,3 +1,0 @@
-2025-07-31 07:39:36,569 - openpasslite - INFO - OpenPassLite service starting up
-2025-07-31 07:39:39,571 - openpasslite - INFO - Root endpoint accessed
-2025-07-31 07:39:59,614 - openpasslite - INFO - OpenPassLite service shutting down
