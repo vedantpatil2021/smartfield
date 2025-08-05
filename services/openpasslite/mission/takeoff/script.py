@@ -2,7 +2,7 @@ import json
 import csv
 from pathlib import Path
 
-def run(drone):
+def run(drone, lat=None, long=None):
     mission_dir = Path(__file__).parent
     config_path = mission_dir / "config.json"
     csv_path = mission_dir / "data.csv"

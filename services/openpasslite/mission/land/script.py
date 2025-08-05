@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from .logic import LandingLogic
 
-def run(drone):
+def run(drone, lat=None, long=None):
     """Main landing mission entry point"""
     mission_dir = Path(__file__).parent
     config_path = mission_dir / "config.json"

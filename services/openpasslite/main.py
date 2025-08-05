@@ -47,7 +47,7 @@ def run_mission_background(mission_name: str, lat: Optional[str], long: Optional
         
         if hasattr(mission_module, 'run'):
             logger.info(f"Executing mission {mission_name}")
-            mission_module.run(drone)
+            mission_module.run(drone, lat, long)
             logger.info(f"Mission {mission_name} completed")
         else:
             raise Exception(f"'run(drone)' not defined in mission.{mission_name}")

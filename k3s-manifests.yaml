@@ -1,0 +1,504 @@
+---
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: smartfield
+---
+# ConfigMap for shared config.toml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: smartfield-config
+  namespace: smartfield
+data:
+  config.toml: |
+    # Add your config.toml content here
+---
+# ConfigMap for Promtail
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: promtail-config
+  namespace: smartfield
+data:
+  config.yml: |
+    # Add your promtail-config.yml content here
+---
+# PersistentVolumes
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: smartfield-logs-pv
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-storage
+  hostPath:
+    path: /opt/smartfield/logs
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: loki-data-pv
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-storage
+  hostPath:
+    path: /opt/smartfield/loki-data
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: grafana-data-pv
+spec:
+  capacity:
+    storage: 2Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-storage
+  hostPath:
+    path: /opt/smartfield/grafana-data
+---
+# PersistentVolumeClaims
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: smartfield-logs-pvc
+  namespace: smartfield
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: local-storage
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: loki-data-pvc
+  namespace: smartfield
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: local-storage
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-data-pvc
+  namespace: smartfield
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+  storageClassName: local-storage
+---
+# OpenPassLite Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openpasslite
+  namespace: smartfield
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: openpasslite
+  template:
+    metadata:
+      labels:
+        app: openpasslite
+    spec:
+      containers:
+      - name: openpasslite
+        image: smartfield/openpasslite:latest
+        ports:
+        - containerPort: 2177
+        env:
+        - name: PYTHONPATH
+          value: "/app"
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config.toml
+          subPath: config.toml
+          readOnly: true
+        - name: logs-volume
+          mountPath: /app/logs
+        - name: mission-volume
+          mountPath: /app/mission
+          readOnly: true
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 2177
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 2177
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+      volumes:
+      - name: config-volume
+        configMap:
+          name: smartfield-config
+      - name: logs-volume
+        persistentVolumeClaim:
+          claimName: smartfield-logs-pvc
+      - name: mission-volume
+        hostPath:
+          path: /opt/smartfield/services/openpasslite/mission
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openpasslite-service
+  namespace: smartfield
+spec:
+  selector:
+    app: openpasslite
+  ports:
+  - port: 2177
+    targetPort: 2177
+    nodePort: 32177
+  type: NodePort
+---
+# SmartField Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: smartfield
+  namespace: smartfield
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: smartfield
+  template:
+    metadata:
+      labels:
+        app: smartfield
+    spec:
+      containers:
+      - name: smartfield
+        image: smartfield/smartfield:latest
+        ports:
+        - containerPort: 2188
+        env:
+        - name: PYTHONPATH
+          value: "/app"
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config.toml
+          subPath: config.toml
+          readOnly: true
+        - name: logs-volume
+          mountPath: /app/logs
+        - name: mission-volume
+          mountPath: /app/mission
+          readOnly: true
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 2188
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 2188
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+      volumes:
+      - name: config-volume
+        configMap:
+          name: smartfield-config
+      - name: logs-volume
+        persistentVolumeClaim:
+          claimName: smartfield-logs-pvc
+      - name: mission-volume
+        hostPath:
+          path: /opt/smartfield/mission
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: smartfield-service
+  namespace: smartfield
+spec:
+  selector:
+    app: smartfield
+  ports:
+  - port: 2188
+    targetPort: 2188
+    nodePort: 32188
+  type: NodePort
+---
+# WildWings Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wildwings
+  namespace: smartfield
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wildwings
+  template:
+    metadata:
+      labels:
+        app: wildwings
+    spec:
+      containers:
+      - name: wildwings
+        image: smartfield/wildwings:latest
+        ports:
+        - containerPort: 2199
+        env:
+        - name: PYTHONPATH
+          value: "/app"
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config.toml
+          subPath: config.toml
+          readOnly: true
+        - name: logs-volume
+          mountPath: /app/logs
+        - name: mission-volume
+          mountPath: /app/mission
+          readOnly: true
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 2199
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 2199
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+      volumes:
+      - name: config-volume
+        configMap:
+          name: smartfield-config
+      - name: logs-volume
+        persistentVolumeClaim:
+          claimName: smartfield-logs-pvc
+      - name: mission-volume
+        hostPath:
+          path: /opt/smartfield/mission
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wildwings-service
+  namespace: smartfield
+spec:
+  selector:
+    app: wildwings
+  ports:
+  - port: 2199
+    targetPort: 2199
+    nodePort: 32199
+  type: NodePort
+---
+# Loki Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loki
+  namespace: smartfield
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: loki
+  template:
+    metadata:
+      labels:
+        app: loki
+    spec:
+      containers:
+      - name: loki
+        image: grafana/loki:2.9.0
+        ports:
+        - containerPort: 3100
+        args:
+        - -config.file=/etc/loki/local-config.yaml
+        volumeMounts:
+        - name: loki-data
+          mountPath: /loki
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+      volumes:
+      - name: loki-data
+        persistentVolumeClaim:
+          claimName: loki-data-pvc
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: loki-service
+  namespace: smartfield
+spec:
+  selector:
+    app: loki
+  ports:
+  - port: 3100
+    targetPort: 3100
+    nodePort: 33100
+  type: NodePort
+---
+# Promtail Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: promtail
+  namespace: smartfield
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: promtail
+  template:
+    metadata:
+      labels:
+        app: promtail
+    spec:
+      containers:
+      - name: promtail
+        image: grafana/promtail:2.9.0
+        args:
+        - -config.file=/etc/promtail/config.yml
+        volumeMounts:
+        - name: logs-volume
+          mountPath: /var/log/app
+          readOnly: true
+        - name: promtail-config
+          mountPath: /etc/promtail/config.yml
+          subPath: config.yml
+          readOnly: true
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+      volumes:
+      - name: logs-volume
+        persistentVolumeClaim:
+          claimName: smartfield-logs-pvc
+      - name: promtail-config
+        configMap:
+          name: promtail-config
+      restartPolicy: Always
+---
+# Grafana Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: smartfield
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+      - name: grafana
+        image: grafana/grafana:10.0.0
+        ports:
+        - containerPort: 3000
+        env:
+        - name: GF_SECURITY_ADMIN_PASSWORD
+          value: "admin"
+        volumeMounts:
+        - name: grafana-data
+          mountPath: /var/lib/grafana
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+      volumes:
+      - name: grafana-data
+        persistentVolumeClaim:
+          claimName: grafana-data-pvc
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana-service
+  namespace: smartfield
+spec:
+  selector:
+    app: grafana
+  ports:
+  - port: 3000
+    targetPort: 3000
+    nodePort: 33000
+  type: NodePort
