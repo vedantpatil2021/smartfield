@@ -135,6 +135,13 @@ spec:
           value: "/app"
         securityContext:
           privileged: true
+          runAsUser: 0
+          runAsGroup: 0
+          capabilities:
+            add:
+              - SYS_RAWIO
+              - NET_RAW
+              - SYS_ADMIN
         volumeMounts:
         - name: config-volume
           mountPath: /app/config.toml
