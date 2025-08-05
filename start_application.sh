@@ -62,10 +62,23 @@ sudo k3s kubectl create configmap promtail-config \
 
 # Create a version of manifests without the placeholder ConfigMaps
 echo -e "${YELLOW}📝 Preparing deployment manifests...${NC}"
-# Remove the placeholder ConfigMaps from the original manifest
-sed '/^---$/,/^---$/{ /kind: ConfigMap/,/^---$/{
-  /^---$/!d
-}}' k3s-manifests.yaml > k3s-manifests-temp.yaml
+# Remove the placeholder ConfigMaps from the original manifest (more reliable approach)
+awk '
+BEGIN { skip = 0; buffer = "" }
+/^---$/ { 
+    if (buffer != "") print buffer
+    buffer = "---"
+    next 
+}
+/^kind: ConfigMap$/ { skip = 1; buffer = ""; next }
+skip == 1 && /^---$/ { skip = 0; buffer = "---"; next }
+skip == 1 { next }
+{ 
+    if (buffer != "") { print buffer; buffer = "" }
+    print $0 
+}
+END { if (buffer != "") print buffer }
+' k3s-manifests.yaml > k3s-manifests-temp.yaml
 
 # Deploy the application
 echo -e "${BLUE}🚀 Deploying SmartField application to K3s...${NC}"
@@ -118,8 +131,8 @@ echo -e "\n${BLUE}🌐 Service Access URLs:${NC}"
 echo -e "${GREEN}OpenPassLite:${NC} http://$NODE_IP:32177"
 echo -e "${GREEN}SmartField:${NC}   http://$NODE_IP:32188"
 echo -e "${GREEN}WildWings:${NC}    http://$NODE_IP:32199"
-echo -e "${GREEN}Grafana:${NC}      http://$NODE_IP:33000 (admin/admin)"
-echo -e "${GREEN}Loki:${NC}         http://$NODE_IP:33100"
+echo -e "${GREEN}Grafana:${NC}      http://$NODE_IP:31000 (admin/admin)"
+echo -e "${GREEN}Loki:${NC}         http://$NODE_IP:31100"
 
 echo -e "\n${BLUE}💾 Storage Information:${NC}"
 sudo k3s kubectl get pvc -n smartfield

@@ -401,7 +401,7 @@ spec:
   ports:
   - port: 3100
     targetPort: 3100
-    nodePort: 33100
+    nodePort: 31100
   type: NodePort
 ---
 # Promtail Service
@@ -500,5 +500,5 @@ spec:
   ports:
   - port: 3000
     targetPort: 3000
-    nodePort: 33000
+    nodePort: 31000
   type: NodePort
