@@ -106,9 +106,23 @@ fi
 
 # Import images to K3s
 echo "📥 Importing Docker images to K3s..."
-sudo k3s ctr images import <(docker save smartfield/openpasslite:latest)
-sudo k3s ctr images import <(docker save smartfield/smartfield:latest)
-sudo k3s ctr images import <(docker save smartfield/wildwings:latest)
+
+# Create temporary directory for image exports
+TEMP_DIR=$(mktemp -d)
+trap "rm -rf $TEMP_DIR" EXIT
+
+echo "Exporting OpenPassLite image..."
+docker save smartfield/openpasslite:latest > "$TEMP_DIR/openpasslite.tar"
+sudo k3s ctr images import "$TEMP_DIR/openpasslite.tar"
+
+echo "Exporting SmartField image..."
+docker save smartfield/smartfield:latest > "$TEMP_DIR/smartfield.tar"
+sudo k3s ctr images import "$TEMP_DIR/smartfield.tar"
+
+echo "Exporting WildWings image..."
+docker save smartfield/wildwings:latest > "$TEMP_DIR/wildwings.tar"
+sudo k3s ctr images import "$TEMP_DIR/wildwings.tar"
+
 echo "✅ Images imported to K3s successfully"
 
 # Create storage class
