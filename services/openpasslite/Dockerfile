@@ -93,9 +93,6 @@ RUN ls -la /app/ && echo "Mission directory contents:" && ls -la /app/mission/ |
 RUN useradd -m -u 1000 droneuser && \
     chown -R droneuser:droneuser /app
 
-# Add network capabilities to Python for raw socket access
-RUN setcap cap_net_raw,cap_net_admin+eip /usr/bin/python3.10
-
 # Test olympe import before switching users
 RUN python3 -c "import olympe; print('Olympe imported successfully')"
 
