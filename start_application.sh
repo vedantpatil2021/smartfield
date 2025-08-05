@@ -60,31 +60,14 @@ sudo k3s kubectl create configmap promtail-config \
   --namespace=smartfield \
   --dry-run=client -o yaml > promtail-config-cm.yaml
 
-# Create a version of manifests without the placeholder ConfigMaps
-echo -e "${YELLOW}📝 Preparing deployment manifests...${NC}"
-# Remove the placeholder ConfigMaps from the original manifest (more reliable approach)
-awk '
-BEGIN { skip = 0; buffer = "" }
-/^---$/ { 
-    if (buffer != "") print buffer
-    buffer = "---"
-    next 
-}
-/^kind: ConfigMap$/ { skip = 1; buffer = ""; next }
-skip == 1 && /^---$/ { skip = 0; buffer = "---"; next }
-skip == 1 { next }
-{ 
-    if (buffer != "") { print buffer; buffer = "" }
-    print $0 
-}
-END { if (buffer != "") print buffer }
-' k3s-manifests.yaml > k3s-manifests-temp.yaml
+# Use the clean base manifests (without placeholder ConfigMaps)
+echo -e "${YELLOW}📝 Using clean deployment manifests...${NC}"
 
 # Deploy the application
 echo -e "${BLUE}🚀 Deploying SmartField application to K3s...${NC}"
 
 # Apply the manifests in order
-sudo k3s kubectl apply -f k3s-manifests-temp.yaml --validate=false
+sudo k3s kubectl apply -f k3s-base-manifests.yaml
 sudo k3s kubectl apply -f smartfield-config-cm.yaml
 sudo k3s kubectl apply -f promtail-config-cm.yaml
 
@@ -113,7 +96,7 @@ for deployment in "${deployments[@]}"; do
 done
 
 # Clean up temporary files
-rm -f k3s-manifests-temp.yaml smartfield-config-cm.yaml promtail-config-cm.yaml
+rm -f smartfield-config-cm.yaml promtail-config-cm.yaml
 
 # Get node IP for service access
 NODE_IP=$(sudo k3s kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
