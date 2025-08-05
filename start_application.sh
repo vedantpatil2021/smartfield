@@ -44,50 +44,36 @@ for file in "${required_files[@]}"; do
 done
 echo -e "${GREEN}✅ All required files found${NC}"
 
-# Update ConfigMaps with actual configuration files
-echo -e "${BLUE}🔧 Updating ConfigMaps with actual configuration...${NC}"
+# Create ConfigMaps from actual configuration files
+echo -e "${BLUE}🔧 Creating ConfigMaps from actual configuration files...${NC}"
 
-# Create temporary manifest file with actual config content
-cp k3s-manifests.yaml k3s-manifests-temp.yaml
+# Create ConfigMaps directly from files (more reliable than inline editing)
+echo -e "${YELLOW}📝 Creating smartfield-config ConfigMap...${NC}"
+sudo k3s kubectl create configmap smartfield-config \
+  --from-file=config.toml=config.toml \
+  --namespace=smartfield \
+  --dry-run=client -o yaml > smartfield-config-cm.yaml
 
-# Replace config.toml content
-echo -e "${YELLOW}📝 Updating config.toml in ConfigMap...${NC}"
-config_content=$(cat config.toml | sed 's/$/\\n/' | tr -d '\n' | sed 's/\\n$//')
-if command_exists python3; then
-    # Use Python to properly escape the content
-    config_escaped=$(python3 -c "
-import sys
-content = open('config.toml', 'r').read()
-escaped = content.replace('\\\\', '\\\\\\\\').replace('\"', '\\\\\"').replace('\n', '\\\\n')
-print(escaped)
-")
-else
-    # Fallback to sed (less reliable but should work for simple configs)
-    config_escaped=$(sed 's/\\/\\\\/g; s/"/\\"/g; s/$/\\n/' config.toml | tr -d '\n' | sed 's/\\n$//')
-fi
+echo -e "${YELLOW}📝 Creating promtail-config ConfigMap...${NC}"
+sudo k3s kubectl create configmap promtail-config \
+  --from-file=config.yml=promtail-config.yml \
+  --namespace=smartfield \
+  --dry-run=client -o yaml > promtail-config-cm.yaml
 
-sed -i.bak "s|# Add your config.toml content here|$config_escaped|g" k3s-manifests-temp.yaml
-
-# Replace promtail-config.yml content
-echo -e "${YELLOW}📝 Updating promtail-config.yml in ConfigMap...${NC}"
-if command_exists python3; then
-    promtail_escaped=$(python3 -c "
-import sys
-content = open('promtail-config.yml', 'r').read()
-escaped = content.replace('\\\\', '\\\\\\\\').replace('\"', '\\\\\"').replace('\n', '\\\\n')
-print(escaped)
-")
-else
-    promtail_escaped=$(sed 's/\\/\\\\/g; s/"/\\"/g; s/$/\\n/' promtail-config.yml | tr -d '\n' | sed 's/\\n$//')
-fi
-
-sed -i.bak2 "s|# Add your promtail-config.yml content here|$promtail_escaped|g" k3s-manifests-temp.yaml
+# Create a version of manifests without the placeholder ConfigMaps
+echo -e "${YELLOW}📝 Preparing deployment manifests...${NC}"
+# Remove the placeholder ConfigMaps from the original manifest
+sed '/^---$/,/^---$/{ /kind: ConfigMap/,/^---$/{
+  /^---$/!d
+}}' k3s-manifests.yaml > k3s-manifests-temp.yaml
 
 # Deploy the application
 echo -e "${BLUE}🚀 Deploying SmartField application to K3s...${NC}"
 
-# Apply the manifests
+# Apply the manifests in order
 sudo k3s kubectl apply -f k3s-manifests-temp.yaml
+sudo k3s kubectl apply -f smartfield-config-cm.yaml
+sudo k3s kubectl apply -f promtail-config-cm.yaml
 
 # Wait for namespace to be created
 echo -e "${YELLOW}⏳ Waiting for namespace to be ready...${NC}"
@@ -114,7 +100,7 @@ for deployment in "${deployments[@]}"; do
 done
 
 # Clean up temporary files
-rm -f k3s-manifests-temp.yaml k3s-manifests-temp.yaml.bak k3s-manifests-temp.yaml.bak2
+rm -f k3s-manifests-temp.yaml smartfield-config-cm.yaml promtail-config-cm.yaml
 
 # Get node IP for service access
 NODE_IP=$(sudo k3s kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
