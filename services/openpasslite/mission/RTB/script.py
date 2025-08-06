@@ -16,6 +16,7 @@ def run(drone, lat=None, long=None):
         drone.camera.media.start_recording()
         heading = drone.get_drone_heading()
         drone.piloting.move_to(lat,long,20,heading,True)
+        drone.piloting.land()
         drone.camera.media.stop_recording()
         drone.camera.media.download_last_media()
         drone.disconnect()

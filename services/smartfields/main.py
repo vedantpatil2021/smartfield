@@ -103,9 +103,9 @@ async def execute_pipeline() -> bool:
         
         # Define pipeline flow
         flow: List[Tuple[str, str, Optional[str]]] = [
-            ("openpasslite", "/start_mission", "takeoff"),
-            # ("wildwings", "/start_mission", None), 
-            ("openpasslite", "/start_mission", "land")
+            ("openpasslite", "/start_mission", "LTT"),
+            ("wildwings", "/start_mission", None), 
+            ("openpasslite", "/start_mission", "RTB")
         ]
         
         # Execute each step in the pipeline
