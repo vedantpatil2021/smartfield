@@ -49,6 +49,18 @@ docker-compose up --build
 podman-compose up --build
 ```
 
+```bash
+# API request format for starting the smartfield pipeline 
+http://127.0.0.1:2188/initiate_process?lat={}&lon={}
+
+Example: http://127.0.0.1:2188/initiate_process?lat=40.00811&lon=-83.01809
+
+# API request format for starting the openpass mission 
+http://127.0.0.1:2177/start_mission?name="{mission_name}"&lat={}&long={}
+
+Example: http://127.0.0.1:2177/start_mission?name=RTB&lat=40.00811&long=-83.01809
+```
+
 ## Configuration
 
 Edit `config.toml` for service-specific settings. Logs are stored in `./logs/` and missions in `./mission/`.
