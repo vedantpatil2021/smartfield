@@ -15,14 +15,12 @@ from contextlib import asynccontextmanager
 import uvicorn
 from pathlib import Path
 
-# Load configuration
 config_path = Path("/app/config.toml")
 if not config_path.exists():
     config_path = Path(__file__).parent.parent.parent / "config.toml"
 config = toml.load(config_path)
 wildwings_config = config["wildwings"]
 
-# Setup logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -33,13 +31,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger("wildwings")
 
-# Global mission state
 logs: List[str] = []
 is_running = False
 current_process = None
 
 def run_mission():
-    """Execute mission in background thread with subprocess"""
     global logs, is_running, current_process
     try:
         is_running = True
@@ -58,7 +54,6 @@ def run_mission():
             text=True
         )
         
-        # Stream subprocess output to logs
         for line in current_process.stdout:
             if current_process.poll() is None or line:
                 log_entry = line.strip()
@@ -81,7 +76,6 @@ def run_mission():
         current_process = None
 
 async def log_stream_generator():
-    """Generate Server-Sent Events for live log streaming"""
     yield f"data: {json.dumps({'message': 'Mission started', 'status': 'running'})}\n\n"
     
     last_log_count = 0
@@ -102,7 +96,6 @@ async def lifespan(app: FastAPI):
     logger.info("WildWings service starting up")
     yield
     logger.info("WildWings service shutting down")
-    # Cleanup any running mission on shutdown
     global current_process, is_running
     if current_process and is_running:
         logger.info("Terminating running mission during shutdown")
@@ -116,7 +109,6 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[wildwings_config["cors_origin"]],
@@ -132,13 +124,11 @@ async def root():
 
 @app.post("/start_mission")
 async def start_mission():
-    """Start mission with real-time log streaming"""
     logger.info("Start mission endpoint accessed")
     
     global logs, is_running
     
     if is_running:
-        # Return error if mission already running
         async def error_stream():
             yield f"data: {json.dumps({'error': 'Mission already running'})}\n\n"
         
@@ -152,11 +142,9 @@ async def start_mission():
             }
         )
     
-    # Clear previous logs and start new mission
     logs.clear()
     threading.Thread(target=run_mission, name="WildWings-Mission").start()
     
-    # Return streaming response with live logs
     return StreamingResponse(
         log_stream_generator(),
         media_type='text/event-stream',
@@ -169,7 +157,6 @@ async def start_mission():
 
 @app.post("/stop_mission")
 async def stop_mission():
-    """Stop currently running mission"""
     logger.info("Stop mission endpoint accessed")
     
     global is_running, current_process
@@ -198,11 +185,10 @@ async def stop_mission():
 
 @app.get("/mission_status")
 async def mission_status():
-    """Get current mission status and recent logs"""
     global is_running, logs
     
     status = "running" if is_running else "idle"
-    recent_logs = logs[-10:] if len(logs) > 10 else logs  # Last 10 logs
+    recent_logs = logs[-10:] if len(logs) > 10 else logs
     
     return {
         "status": status,
@@ -213,7 +199,6 @@ async def mission_status():
 
 @app.get("/logs")
 async def get_logs():
-    """Get all mission logs"""
     return {
         "logs": logs,
         "total_count": len(logs),

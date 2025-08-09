@@ -1,34 +1,54 @@
-Build Images
+# SmartField
 
-# Navigate to project root
-cd "/Users/vedantsmac/Library/CloudStorage/OneDrive-TheOhioStateUniversity/Research Prof. Stewart/smartfield"
 
-# Build all services
-podman build -t smartfields:latest ./services/smartfields
-podman build -t openpasslite:latest ./services/openpasslite
-podman build -t wildwings:latest ./services/wildwings
+## System Requirements
 
-Save Images for K3s
+- **OS**: Ubuntu 22.04 LTS
+- **RAM**: Minimum 4GB
+- **Hardware**: Anafi Parrot drone
+- **Software**: Docker and Docker Compose
 
-# Export images as tar files
-podman save smartfields:latest -o smartfields.tar
-podman save openpasslite:latest -o openpasslite.tar
-podman save wildwings:latest -o wildwings.tar
+## Services
 
-Import to K3s
+### openpasslite (:2177) - Anafi drone control with LTT/RTB missions
+- `GET /` - Health check
+- `POST /start_mission` - Start drone mission
+- `POST /stop_mission` - Stop drone mission  
+- `GET /mission_status` - Get mission status
+- `GET /logs` - View service logs
 
-# Import images to K3s containerd
-sudo k3s ctr images import smartfields.tar
-sudo k3s ctr images import openpasslite.tar
-sudo k3s ctr images import wildwings.tar
+### smartfield (:2188) - Field monitoring and analysis
+- `GET /` - Health check
+- `GET /initiate_process` - Start field analysis
+- `GET /logs` - View logs (HTML)
+- `GET /pipeline_status` - Get processing status
+- `GET /health` - Service health
+- `POST /start_mission` - Start field mission
+- `POST /stop_mission` - Stop field mission
 
-# Verify images
-sudo k3s ctr images list | grep smartfield
+### wildwings (:2199) - Route visualization and navigation
+- `GET /` - Health check
+- `POST /start_mission` - Start navigation mission
+- `POST /stop_mission` - Stop navigation mission
+- `GET /mission_status` - Get mission status
+- `GET /logs` - View service logs
 
-## Alternative: Run with Podman Compose
+## Monitoring Stack
 
-# Use podman-compose instead of docker-compose
+- **Grafana** (:3000) - Dashboard (admin/admin)
+- **Loki** (:3100) - Log aggregation
+- **Promtail** - Log collection
+
+## Quick Start
+
+```bash
+# Build and run all services
+docker-compose up --build
+
+# Or with Podman
 podman-compose up --build
+```
 
-# Or use podman play kube with docker-compose
-podman play kube docker-compose.yml
+## Configuration
+
+Edit `config.toml` for service-specific settings. Logs are stored in `./logs/` and missions in `./mission/`.

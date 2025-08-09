@@ -1,4 +1,5 @@
 import json
+import time
 import csv
 import os
 from pathlib import Path
@@ -11,14 +12,17 @@ def run(drone, lat=None, long=None):
     csv_path = mission_dir / "data.csv"
 
     try:
+        print("=== INITIALIZING DRONE ===")
+        print("=== CONNECTING TO DRONE ===")
         drone.connect()
-        drone.camera.media.setup_recording("standard","res_dci_4k","fps_24","ratio_15")
-        drone.camera.media.start_recording()
-        heading = drone.get_drone_heading()
-        drone.piloting.move_to(lat,long,20,heading,True)
-        drone.piloting.land()
-        drone.camera.media.stop_recording()
-        drone.camera.media.download_last_media()
+        time.sleep(3)
+        print("=== SETTING UP RETURN TO HOME ===")
+        drone.rth.setup_rth()
+        print("=== RETURNING BACK HOME ===")
+        drone.rth.return_to_home()
+        print("=== MISSION COMPLETED SUCCESSFULLY ===")
+        time.sleep(3)
+        print("=== DISCONNECTING FROM DRONE ===")
         drone.disconnect()
         
     except Exception as e:

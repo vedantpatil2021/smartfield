@@ -43,7 +43,7 @@ def run_mission_background(mission_name: str, lat: Optional[str], long: Optional
         logger.info(f"Starting mission: {mission_name}")
         mission_module = importlib.import_module(f"mission.{mission_name}.script")
 
-        drone = AnafiController()
+        drone = AnafiController(connection_type=1)
         
         if hasattr(mission_module, 'run'):
             logger.info(f"Executing mission {mission_name}")
@@ -88,13 +88,11 @@ app.add_middleware(
 
 @app.get("/")
 async def root():
-    """Root endpoint"""
     logger.info("Root endpoint accessed")
     return {"message": "OpenPassLite Service", "status": "running"}
 
 @app.post("/start_mission")
 async def start_mission(name: str, lat: Optional[str] = None, long: Optional[str] = None):
-    """Start a mission by name with optional coordinates"""
     logger.info(f"Start mission endpoint accessed - Mission: {name}")
     
     global mission_thread, stop_mission_flag
@@ -131,7 +129,6 @@ async def start_mission(name: str, lat: Optional[str] = None, long: Optional[str
 
 @app.post("/stop_mission")
 async def stop_mission():
-    """Stop the currently running mission"""
     logger.info("Stop mission endpoint accessed")
     
     global mission_thread, stop_mission_flag
@@ -154,7 +151,6 @@ async def stop_mission():
 
 @app.get("/mission_status")
 async def mission_status():
-    """Get current mission status"""
     global mission_thread, stop_mission_flag
     
     if mission_thread and mission_thread.is_alive():
@@ -172,7 +168,6 @@ async def mission_status():
 
 @app.get("/logs")
 async def get_logs(lines: int = 100):
-    """Get recent log entries from openpasslite log file"""
     logger.info(f"Logs endpoint accessed - requesting {lines} lines")
     
     try:

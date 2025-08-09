@@ -1,6 +1,0 @@
-parameter,value,unit,description
-descent_rate,1.5,m/s,Maximum descent rate during landing
-hover_altitude,3,meters,Altitude to hover before final descent
-landing_timeout,30,seconds,Maximum time allowed for landing sequence
-precision_threshold,1,meters,Precision landing accuracy requirement
-safety_margin,0.5,meters,Safety margin from obstacles during descent

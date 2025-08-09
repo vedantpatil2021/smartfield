@@ -4,25 +4,20 @@
 # CLOUD MACHINE (USB SERVER) - Run this script
 # ===========================================
 setup_usb_server() {
-    # Install and setup
     sudo apt update && sudo apt install -y usbip
     sudo modprobe usbip-core usbip-host
     
-    # List USB devices
     echo "Available USB devices:"
     lsusb
     
-    # Bind all USB devices (or specify specific busid)
     for device in $(usbip list -l | grep -o "[0-9]-[0-9]"); do
         sudo usbip bind -b $device
         echo "Bound device: $device"
     done
     
-    # Start server
     sudo usbipd -D
     echo "USB server started on port 3240"
     
-    # Open firewall
     sudo ufw allow 3240 2>/dev/null || true
 }
 
@@ -37,15 +32,12 @@ connect_usb_client() {
         exit 1
     fi
     
-    # Install and setup
     sudo apt update && sudo apt install -y usbip
     sudo modprobe usbip-core vhci-hcd
     
-    # List and attach all remote USB devices
     echo "Available remote USB devices:"
     usbip list -r $CLOUD_IP
     
-    # Auto-attach all devices
     for device in $(usbip list -r $CLOUD_IP | grep -o "[0-9]-[0-9]"); do
         sudo usbip attach -r $CLOUD_IP -b $device
         echo "Attached device: $device"
