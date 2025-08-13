@@ -2,9 +2,9 @@ import cv2
 import time
 import queue
 import olympe
-from SoftwarePilot import SoftwarePilot
 from ultralytics import YOLO
 import navigation as navigation
+from AnafiController import AnafiController
 import sys
 import json
 import time
@@ -96,38 +96,13 @@ class Tracker:
         # pool exhaustion.
         yuv_frame.unref()
 
-
-# Setup a parrot anafi drone, connected through a controller, without a specific download directory
-sp = SoftwarePilot()
-
-os.environ['MPLCONFIGDIR'] = '/tmp/matplotlib_config'
-os.environ['YOLO_CONFIG_DIR'] = '/tmp/yolo_config'
-os.environ['FONTCONFIG_PATH'] = '/tmp/fontconfig'
-os.environ['FONTCONFIG_FILE'] = '/tmp/fontconfig/fonts.conf'
-os.environ['XDG_CONFIG_HOME'] = '/tmp/xdg_config'
-os.environ['XDG_DATA_HOME'] = '/tmp/xdg_data'
-os.environ['XDG_CACHE_HOME'] = '/tmp/xdg_cache'
-os.environ['OLYMPE_HOME'] = '/tmp/olympe'
-
-# Create all necessary directories
-for path in [
-    os.environ['MPLCONFIGDIR'],
-    os.environ['YOLO_CONFIG_DIR'],
-    os.environ['FONTCONFIG_PATH'],
-    os.path.join(os.environ['XDG_CONFIG_HOME']),
-    os.path.join(os.environ['XDG_DATA_HOME'], 'parrot', 'olympe'),
-    os.environ['OLYMPE_HOME'],
-    '/tmp/yolo_models'
-]:
-    os.makedirs(path, exist_ok=True)
-
 # Specify the model path
-model_path = '/tmp/yolo_models/yolov5su.pt'
+model_path = 'yolov5su.pt'
 
 model = YOLO(model_path)
 
 # Connect to the drone
-drone = sp.setup_drone("parrot_anafi", 1, "None")
+drone = AnafiController(connection_type=1)
 drone.connect()
 
 # Create a tracker object
