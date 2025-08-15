@@ -57,11 +57,18 @@ services:
       - ./config.toml:/app/config.toml:ro
       - ./logs:/app/logs
       - ./mission:/app/mission:ro
+      - wildwings-missions:/app/missions
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
     environment:
       - PYTHONPATH=/app
+      - DISPLAY=${DISPLAY:-:99}
+      - CONDA_DEFAULT_ENV=wildwing
+    devices:
+      - /dev/dri:/dev/dri
     networks:
       - smartfield-network
     restart: unless-stopped
+    privileged: true
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:2199/"]
       interval: 30s
@@ -108,6 +115,7 @@ services:
 volumes:
   loki-data:
   grafana-data:
+  wildwings-missions:
 
 networks:
   smartfield-network:

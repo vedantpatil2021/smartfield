@@ -48,7 +48,7 @@ def run_mission():
         logger.info(f"Starting mission with output directory: {output_dir}")
         
         current_process = subprocess.Popen(
-            ["python3", "controller.py", output_dir],
+            ["conda", "run", "-n", "wildwing", "python", "controller.py", output_dir],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True

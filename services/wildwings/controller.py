@@ -2,17 +2,23 @@ import cv2
 import time
 import queue
 import olympe
+from SoftwarePilot import SoftwarePilot
 from ultralytics import YOLO
 import navigation as navigation
-from AnafiController import AnafiController
 import sys
 import json
 import time
 import csv 
 import os
 import datetime
+import logging
 
 
+# To run, first fly the drone an area with direct sight of the zebras using the FreeFlight6 app
+# Then run the program
+
+# User-defined mission parameters
+# 5 minutes is 300 seconds
 DURATION = 200 # duration in seconds
 
 # Retrieve the filename from command-line arguments
@@ -21,6 +27,10 @@ if len(sys.argv) < 2:
     sys.exit(1)
 
 output_directory = sys.argv[1]
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Define CSV file path to store telemetry data
 # Define the CSV file path
@@ -96,14 +106,17 @@ class Tracker:
         # pool exhaustion.
         yuv_frame.unref()
 
-# Specify the model path
-model_path = 'yolov5su.pt'
 
-model = YOLO(model_path)
+# Setup a parrot anafi drone, connected through a controller, without a specific download directory
+sp = SoftwarePilot()
+model = YOLO('yolov5su')
 
 # Connect to the drone
-drone = AnafiController(connection_type=1)
+drone = sp.setup_drone("parrot_anafi", 1, "None")
 drone.connect()
+
+# wait for drone to stabilize
+time.sleep(5)
 
 # Create a tracker object
 tracker = Tracker(drone, model)
@@ -119,10 +132,14 @@ time.sleep(5)
 drone.camera.media.setup_stream(yuv_frame_processing=tracker.track)
 drone.camera.media.start_stream() 
 
-# set window properties
-cv2.namedWindow('tracking', cv2.WINDOW_KEEPRATIO)
-cv2.resizeWindow('tracking', 500, 500)
-cv2.moveWindow('tracking', 0, 0)
+# set window properties (with error handling for headless environments)
+try:
+    cv2.namedWindow('tracking', cv2.WINDOW_KEEPRATIO)
+    cv2.resizeWindow('tracking', 500, 500)
+    cv2.moveWindow('tracking', 0, 0)
+    logger.info("Display window created successfully")
+except Exception as e:
+    logger.warning(f"Could not create display window: {e}. Continuing in headless mode.")
 
 # set track duration in seconds
 time.sleep(DURATION)
@@ -131,3 +148,6 @@ drone.camera.media.stop_stream()
 # stop recording
 drone.camera.media.stop_recording()
 drone.camera.media.download_last_media()
+
+# Disconnect the drone
+drone.disconnect()

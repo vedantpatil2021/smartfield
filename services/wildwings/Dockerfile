@@ -1,12 +1,9 @@
-FROM ubuntu:22.04
+FROM continuumio/miniconda3:latest
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Install system dependencies required for drone operations and video display
 RUN apt-get update && apt-get install -y \
- python3.10 \
- python3.10-venv \
- python3-pip \
- python3.10-dev \
  curl \
  wget \
  git \
@@ -44,45 +41,57 @@ RUN apt-get update && apt-get install -y \
  libprotobuf-c-dev \
  protobuf-compiler \
  protobuf-c-compiler \
- rsync \
- && rm -rf /var/lib/apt/lists/*
-
-RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1
-RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.10 1
-
-RUN python3 -m pip install --upgrade pip setuptools wheel
-
-WORKDIR /app
-
-RUN mkdir -p /app/logs /app/mission
-
-COPY requirements.txt .
-
-RUN pip3 install --no-cache-dir fastapi uvicorn[standard] toml python-multipart opencv-python
-
-RUN pip3 install --no-cache-dir --verbose parrot-olympe>=7.7.0
-
-RUN apt-get update && apt-get install -y \
  wireless-tools \
  net-tools \
  iproute2 \
+ rsync \
+ xvfb \
+ x11-utils \
  && rm -rf /var/lib/apt/lists/*
 
-ENV LD_LIBRARY_PATH=/usr/local/lib/python3.10/dist-packages/olympe_deps:/usr/local/lib:$LD_LIBRARY_PATH
-ENV PYTHONPATH=/app:$PYTHONPATH
+WORKDIR /app
 
+# Create directories for mission data and logs
+RUN mkdir -p /app/logs /app/missions /app/mission
+
+# Copy requirements first for better layer caching
+COPY requirements.txt .
+
+# Create conda environment with basic Python and common packages
+RUN conda create --name wildwing python=3.11 -c conda-forge -y && \
+    conda clean -afy
+
+# Install packages via pip from requirements.txt in the conda environment
+RUN /opt/conda/envs/wildwing/bin/pip install --no-cache-dir -r requirements.txt
+
+# Make RUN commands use the new environment
+SHELL ["conda", "run", "-n", "wildwing", "/bin/bash", "-c"]
+
+# Set environment variables for olympe and display
+ENV LD_LIBRARY_PATH=/opt/conda/envs/wildwing/lib/python3.11/site-packages/olympe_deps:/usr/local/lib:$LD_LIBRARY_PATH
+ENV PYTHONPATH=/app:$PYTHONPATH
+ENV DISPLAY=:99
+ENV QT_QPA_PLATFORM=offscreen
+
+# Create user first
+RUN useradd -m -u 1000 droneuser
+
+# Copy application files
 COPY . .
 
-RUN useradd -m -u 1000 droneuser && \
- chown -R droneuser:droneuser /app
+# Set permissions for all app files and ensure droneuser can write to missions and logs directories
+RUN chown -R droneuser:droneuser /app && \
+    chmod -R 755 /app/missions /app/logs
 
-RUN python3 -c "import olympe; print('Olympe imported successfully')"
+# Test olympe import
+RUN python -c "import olympe; print('Olympe imported successfully')"
 
 USER droneuser
 
 EXPOSE 2199
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-CMD curl -f http://localhost:2199/ || exit 1
+    CMD curl -f http://localhost:2199/ || exit 1
 
-CMD ["python3", "main.py"]
+# Start Xvfb for video display and run the application
+CMD ["bash", "-c", "Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 & conda run -n wildwing python main.py"]
