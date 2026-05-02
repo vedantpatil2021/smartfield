@@ -1,0 +1,36 @@
+# Mission logs and media — generated at runtime, not source
+logs/mission/*
+!logs/mission/.gitkeep
+
+# Docker image exports — large binary files, transport via USB
+*.tar.gz
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# YOLO model weights and cache — baked into Docker image at build time
+*.pt
+*.onnx
+.ultralytics/
+
+# Environment / secrets
+.env
+.env.*
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

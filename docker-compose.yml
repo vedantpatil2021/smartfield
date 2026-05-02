@@ -1,0 +1,72 @@
+# =============================================================================
+# Smartfield — docker-compose
+#
+# Services:  smartfield (port 9988)  |  mqtt_subscriber (port 9987)
+# Network:   host — both containers share the host network stack directly.
+#            This lets smartfield reach the drone over WiFi (192.168.42.1)
+#            and lets mqtt_subscriber reach the MQTT broker on the host.
+#
+# USAGE
+#   docker compose up --build        # build and start both services
+#   docker compose up smartfield     # start only smartfield
+#   docker compose down              # stop and remove containers
+# =============================================================================
+
+services:
+
+  # ── smartfield ──────────────────────────────────────────────────────────────
+  smartfield:
+    build:
+      context: services/smartfield
+      dockerfile: ${SMARTFIELD_DOCKERFILE:-Dockerfile.gpu}
+    image: ${SMARTFIELD_IMAGE:-smartfield:gpu}
+    container_name: smartfield
+    network_mode: host
+    environment:
+      APP_PORT: "9988"
+      MISSION_LOGS_DIR: /logs/mission
+      CONFIG_PATH: /app/config.toml
+    volumes:
+      - ./logs/mission:/logs/mission
+      - ./config.toml:/app/config.toml:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu, compute, utility, video]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9988/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+
+  # ── mqtt_subscriber ──────────────────────────────────────────────────────────
+  mqtt_subscriber:
+    build:
+      context: services/mqtt_subscriber
+      dockerfile: Dockerfile
+    image: mqtt-subscriber:latest
+    container_name: mqtt_subscriber
+    network_mode: host
+    environment:
+      APP_PORT: "9987"
+      MQTT_BROKER: "localhost"
+      MQTT_PORT: "1883"
+      SMARTFIELD_URL: "http://localhost:9988"
+      CONFIG_PATH: "/app/config.toml"
+    volumes:
+      - ./config.toml:/app/config.toml:ro
+    restart: unless-stopped
+    depends_on:
+      smartfield:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9987/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 15s
+      retries: 3

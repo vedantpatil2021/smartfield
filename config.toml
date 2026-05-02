@@ -1,0 +1,4 @@
+[mission]
+lat       = 0.0
+long      = 0.0
+mode_type = "live"   # "test" = YOLO runs but drone won't move | "live" = full autonomous flight

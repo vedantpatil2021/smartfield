@@ -1,0 +1,122 @@
+# =============================================================================
+# Smartfield — CPU build (no NVIDIA runtime required)
+#
+# Use this on laptops / edge devices without a CUDA-capable GPU.
+# torch and torchvision are pulled from PyTorch's CPU-only wheel index,
+# cutting the image from ~2 GB to ~800 MB.
+#
+# Network: --network host so the container reaches the drone over WiFi.
+# =============================================================================
+
+FROM ubuntu:22.04
+
+ARG APP_PORT=9000
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    # Olympe ships bundled C libs here; must be on LD_LIBRARY_PATH
+    LD_LIBRARY_PATH=/usr/local/lib/python3.10/dist-packages/olympe_deps:/usr/local/lib \
+    # Suppress Olympe's extremely verbose default logging
+    OLYMPE_LOG_LEVEL=WARNING \
+    # OpenCV offscreen rendering — no physical display needed inside the container
+    QT_QPA_PLATFORM=offscreen \
+    QT_X11_NO_MITSHM=1 \
+    # YOLO weights baked into the image at build time (no internet on first start)
+    YOLO_CONFIG_DIR=/app/.ultralytics \
+    MISSION_LOGS_DIR=/logs/mission \
+    APP_PORT=${APP_PORT}
+
+# ── System dependencies ───────────────────────────────────────────────────────
+# Identical to Dockerfile.gpu minus the CUDA-specific libs (those come from
+# the nvidia/cuda base image in the GPU build).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Python
+    python3.10 \
+    python3.10-dev \
+    python3-pip \
+    python3-setuptools \
+    # Build tools — needed for native pip extensions
+    build-essential \
+    cmake \
+    pkg-config \
+    libssl-dev \
+    libffi-dev \
+    # OpenCV headless rendering
+    libgl1-mesa-glx \
+    libgl1 \
+    libglx-mesa0 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    libxfixes3 \
+    libgomp1 \
+    xvfb \
+    # FFmpeg + codec libs — Olympe video decode pipeline
+    ffmpeg \
+    libavcodec-dev \
+    libavformat-dev \
+    libavutil-dev \
+    libswscale-dev \
+    libswresample-dev \
+    libavdevice-dev \
+    # SDL2 — PySDL2 / Olympe media player backend
+    libsdl2-2.0-0 \
+    libsdl2-dev \
+    # GStreamer — required by Olympe's pdraw streaming engine
+    libgstreamer1.0-dev \
+    libgstreamer-plugins-base1.0-dev \
+    gstreamer1.0-plugins-base \
+    gstreamer1.0-plugins-good \
+    gstreamer1.0-plugins-bad \
+    gstreamer1.0-libav \
+    # USB — drone hardware interface
+    libusb-1.0-0 \
+    # Utilities
+    curl \
+    iproute2 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN update-alternatives --install /usr/bin/python  python  /usr/bin/python3.10 1 && \
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1 && \
+    update-alternatives --install /usr/bin/pip     pip     /usr/bin/pip3       1
+
+# ── Python dependencies ───────────────────────────────────────────────────────
+WORKDIR /app
+
+COPY requirements.txt .
+
+# On CPU we need to:
+#   1. Strip GPU-only packages: nvidia-*, triton, and the CUDA torch build
+#   2. Strip the conflicting opencv-python (keep headless only)
+#   3. Install torch + torchvision from PyTorch's CPU wheel index
+RUN pip install --no-cache-dir --upgrade pip && \
+    grep -vE "^(nvidia-|triton|torch==|torchvision==|opencv-python==)" requirements.txt > /tmp/req_cpu.txt && \
+    pip install --no-cache-dir -r /tmp/req_cpu.txt && \
+    pip install --no-cache-dir \
+        --index-url https://download.pytorch.org/whl/cpu \
+        torch==2.4.0 \
+        torchvision==0.19.0 && \
+    rm /tmp/req_cpu.txt
+
+# Verify Olympe loads correctly with its bundled libs
+RUN python -c "import olympe; print('olympe OK')"
+
+# Bake YOLO weights into the image — containers start without internet access
+RUN python -c "from ultralytics import YOLO; YOLO('yolov5su')" && \
+    echo "YOLO weights cached"
+
+# ── Application source ────────────────────────────────────────────────────────
+COPY . .
+
+RUN mkdir -p /logs/mission
+
+VOLUME ["/logs/mission"]
+
+EXPOSE ${APP_PORT}
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:${APP_PORT}/health || exit 1
+
+CMD ["python", "api.py"]
