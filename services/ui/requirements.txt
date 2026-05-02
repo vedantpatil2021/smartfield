@@ -1,0 +1,14 @@
+# Smartfield Dashboard — Python dependencies
+#
+# Native install on Ubuntu 22.04:
+#   sudo apt install -y vlc libvlc-dev libgl1-mesa-glx libglib2.0-0 libxcb-cursor0 libxkbcommon-x11-0
+#   pip install -r requirements.txt
+#
+# NOTE: python3-pyqt6 is NOT available via apt on Ubuntu 22.04.
+#       PyQt6 must be installed from pip — the wheel bundles Qt6 internally.
+
+PyQt6>=6.5.0
+python-vlc>=3.0.21120
+requests>=2.31.0
+psutil>=5.9.8
+toml>=0.10.2

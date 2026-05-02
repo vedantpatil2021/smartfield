@@ -179,6 +179,13 @@ Upon successful deployment you will have:
 - Mission logs and telemetry CSVs written to `logs/mission/`
 - A system that operates without internet or cloud infrastructure
 
+To also launch the field operations dashboard:
+```bash
+make ui
+```
+
+The dashboard opens a native desktop window with live RTSP video, service health indicators, mission trigger controls, and a real-time log terminal.
+
 ---
 
 # How-To Guides
@@ -298,6 +305,51 @@ Clean all mission logs when storage is low:
 ```bash
 make clean-logs
 ```
+
+---
+
+## How to Launch the Field Operations Dashboard
+
+### Problem Description
+Monitoring live RTSP video from the drone, checking service health, triggering missions, and reading log output from a single desktop interface — without switching between terminal windows.
+
+### Prerequisites
+- Conda (Anaconda or Miniconda) installed on the host machine
+- An active X11 session (standard on Ubuntu desktop)
+- Both `smartfield` and `mqtt_subscriber` services running (`make up-detach`)
+
+### Steps
+
+1. Grant X11 display access to local processes:
+   ```bash
+   xhost +local:
+   ```
+
+2. Launch the dashboard:
+   ```bash
+   make ui
+   ```
+
+   On first run, `make ui` calls `services/ui/run.sh`, which:
+   - Creates a `smartfield` conda environment with Python 3.10 (if it doesn't already exist)
+   - Installs system dependencies (`vlc`, Qt XCB runtime libraries)
+   - Installs Python dependencies (`PyQt6`, `python-vlc`, `requests`, `psutil`, `toml`)
+   - Launches `dashboard.py` from the smartfield root directory
+
+   Subsequent runs skip environment creation and start immediately.
+
+3. The dashboard window opens with:
+   - **Live Video**: RTSP stream from the drone rendered via VLC into the left panel
+   - **Service Health**: Pulsing green/red indicators for `smartfield` and `mqtt_subscriber`
+   - **Detection-to-Documentation Pipeline**: Visual stage tracker (MQTT → Trigger → Takeoff → Track → Land → Log)
+   - **Mission Config**: Editable lat/lon and mode_type fields with a Save Config button
+   - **Log Terminal**: Real-time log tail from `smartfield` with INFO / WARNING / ERROR filter tabs
+   - **Metrics**: CPU, RAM, and GPU usage bars updated every 5 seconds
+
+### Notes
+- The dashboard connects to `smartfield` at `http://localhost:9988` and `mqtt_subscriber` at `http://localhost:9987`. Both services must be running for health polling to show green.
+- The RTSP URL defaults to `rtsp://192.168.53.1/live` (Parrot ANAFI via SkyController). Override with the `RTSP_URL` environment variable if your setup differs.
+- To run the dashboard as a Docker container instead of natively, use `docker compose up ui` — but ensure `xhost +local:docker` is run first and `DISPLAY` is set in your shell.
 
 ---
 
@@ -430,6 +482,7 @@ Smartfield is built around a single architectural proposition: detection and doc
 | **smartfield** | Mission orchestrator; connects the drone, sequences missions, coordinates YOLO tracking | FastAPI + SoftwarePilot |
 | **OpenPassLite** | GPS-based flight mission library (LTT, RTB, TAKEOFF, LAND) | SoftwarePilot / Olympe |
 | **WildWings** | Computer vision tracking layer; runs YOLO on the live video stream | Ultralytics + OpenCV |
+| **Field Dashboard** | Native desktop GUI for live video monitoring, mission control, and log inspection | PyQt6 + python-vlc |
 | **Parrot ANAFI** | Autonomous aerial observation platform | Hardware |
 
 ### The Detection-to-Documentation Pipeline

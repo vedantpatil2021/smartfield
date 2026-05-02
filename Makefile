@@ -45,6 +45,10 @@ help:
 	@echo "    make mode-test       Switch config.toml to test mode"
 	@echo "    make mode-show       Show current mode_type in config.toml"
 	@echo ""
+	@echo "  Dashboard"
+	@echo "    make ui          Launch the field operations dashboard (native)"
+	@echo "    make logs-ui     Tail dashboard container logs"
+	@echo ""
 	@echo "  Cleanup"
 	@echo "    make clean       Remove stopped containers and dangling images"
 	@echo "    make clean-logs  Delete all mission log files"
@@ -87,6 +91,15 @@ logs-sf:
 
 logs-mq:
 	$(COMPOSE) logs -f mqtt_subscriber
+
+logs-ui:
+	$(COMPOSE) logs -f ui
+
+# ── Dashboard ─────────────────────────────────────────────────────────────────
+
+ui:
+	@echo "Launching Smartfield Dashboard (native — requires conda)..."
+	bash services/ui/run.sh
 
 # ── Status ────────────────────────────────────────────────────────────────────
 
@@ -159,8 +172,9 @@ clean-logs:
 	@echo "Done."
 
 .PHONY: help up up-detach down restart build detect \
-        logs logs-sf logs-mq \
+        logs logs-sf logs-mq logs-ui \
         status health \
         mission-live mission-test mode-live mode-test mode-show \
         export-gpu export-cpu load \
+        ui \
         clean clean-logs

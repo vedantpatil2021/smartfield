@@ -1,15 +1,20 @@
 # =============================================================================
 # Smartfield — docker-compose
 #
-# Services:  smartfield (port 9988)  |  mqtt_subscriber (port 9987)
-# Network:   host — both containers share the host network stack directly.
-#            This lets smartfield reach the drone over WiFi (192.168.42.1)
-#            and lets mqtt_subscriber reach the MQTT broker on the host.
+# Services:  smartfield (port 9988)  |  mqtt_subscriber (port 9987)  |  ui
+# Network:   host — all containers share the host network stack directly.
+#            This lets smartfield reach the drone over WiFi (192.168.42.1),
+#            lets mqtt_subscriber reach the MQTT broker on the host, and
+#            lets the UI reach both services at localhost.
 #
 # USAGE
-#   docker compose up --build        # build and start both services
+#   docker compose up --build        # build and start all services
 #   docker compose up smartfield     # start only smartfield
+#   docker compose up ui             # start only the dashboard
 #   docker compose down              # stop and remove containers
+#
+# UI DISPLAY (required before starting the ui service):
+#   xhost +local:docker
 # =============================================================================
 
 services:
@@ -70,3 +75,27 @@ services:
       timeout: 10s
       start_period: 15s
       retries: 3
+
+  # ── ui ───────────────────────────────────────────────────────────────────────
+  ui:
+    build:
+      context: services/ui
+      dockerfile: Dockerfile
+    image: smartfield-ui:latest
+    container_name: smartfield_ui
+    network_mode: host
+    environment:
+      DISPLAY: ${DISPLAY:-:0}
+      SMARTFIELD_URL: "http://localhost:9988"
+      SUBSCRIBER_URL: "http://localhost:9987"
+      CONFIG_PATH: "/app/config.toml"
+      LOGS_DIR: "/logs/mission"
+      RTSP_URL: "rtsp://192.168.53.1/live"
+    volumes:
+      - ./config.toml:/app/config.toml
+      - ./logs/mission:/logs/mission
+      - /tmp/.X11-unix:/tmp/.X11-unix
+    restart: "no"
+    depends_on:
+      smartfield:
+        condition: service_healthy
