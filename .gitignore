@@ -1,6 +1,7 @@
 # Mission logs and media — generated at runtime, not source
 logs/mission/*
 !logs/mission/.gitkeep
+AnafiMedia
 
 # Docker image exports — large binary files, transport via USB
 *.tar.gz
