@@ -1,5 +1,5 @@
 # =============================================================================
-# Smartfield Dashboard — UI container (PyQt6 + python-vlc)
+# Smartfield Dashboard — UI container (PyQt6 + OpenCV)
 #
 # This container runs a PyQt6 GUI application and requires a host X11 display.
 #
@@ -29,13 +29,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.10 \
     python3-pip \
     python3-setuptools \
-    # VLC and its dev headers (needed by python-vlc)
-    vlc \
-    libvlc-dev \
-    libvlccore-dev \
+    # OpenCV runtime dependencies
+    libgstreamer1.0-0 \
+    libgstreamer-plugins-base1.0-0 \
     # Qt6 XCB / X11 platform plugin dependencies
     libgl1-mesa-glx \
     libgl1 \
+    libegl1 \
     libglib2.0-0 \
     libxcb-xinerama0 \
     libxcb-cursor0 \
@@ -49,6 +49,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libdbus-1-3 \
     libfontconfig1 \
     libxrender1 \
+    fonts-noto-color-emoji \
     && rm -rf /var/lib/apt/lists/*
 
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1 && \

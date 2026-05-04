@@ -16,6 +16,15 @@ _model = YOLO('yolov5su')
 
 DURATION = 200
 
+_BAR = "=" * 52
+
+
+def _banner(title: str, error: bool = False):
+    emit = _log.error if error else _log.info
+    emit(_BAR)
+    emit("  %s", title)
+    emit(_BAR)
+
 
 class Tracker:
     def __init__(self, drone, output_directory, mode_type):
@@ -83,26 +92,20 @@ class Tracker:
 
 
 def run(drone, output_directory, mode_type):
-    _log.info("tracker starting — mode=%s duration=%ds", mode_type, DURATION)
+    _banner(f"WILDWINGS — AERIAL TRACKING  [mode={mode_type}  duration={DURATION}s]")
+
     tracker = Tracker(drone, output_directory, mode_type)
 
+    _log.info("Setting Up Recording")
     drone.camera.media.setup_recording()
-    drone.camera.media.start_recording()
-    _log.info("recording started")
-    time.sleep(5)
 
+    _log.info("Starting Video Stream")
     drone.camera.media.setup_stream(yuv_frame_processing=tracker.track)
     drone.camera.media.start_stream()
-    _log.info("stream started")
 
-    cv2.namedWindow('tracking', cv2.WINDOW_KEEPRATIO)
-    cv2.resizeWindow('tracking', 500, 500)
-    cv2.moveWindow('tracking', 0, 0)
-
+    _banner("TRACKING ACTIVE — YOLO Running")
     time.sleep(DURATION)
 
     drone.camera.media.stop_stream()
-    _log.info("stream stopped")
-    drone.camera.media.stop_recording()
-    drone.camera.media.download_last_media()
-    _log.info("recording saved")
+    _banner("TRACKING COMPLETE — Stream Stopped")
+    _log.info("Recording Saved")

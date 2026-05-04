@@ -54,7 +54,7 @@ This tutorial walks through deploying Smartfield from a clean machine to a runni
 - `make`
 - `curl` (for health checks)
 - Linux-based OS (tested on Ubuntu 22.04)
-- NVIDIA Container Toolkit (GPU builds only)
+- NVIDIA Container Toolkit (GPU builds only) — installed via `make prereqs`
 
 ---
 
@@ -76,46 +76,53 @@ This tutorial walks through deploying Smartfield from a clean machine to a runni
 
    > **IMPORTANT**: The `lat` and `long` values are the coordinates the drone will fly to. Incorrect values will cause the drone to navigate to the wrong location. Verify them before field deployment.
 
-3. Verify which hardware the system detected:
-   ```bash
-   make detect
-   ```
-   Expected output:
-   ```
-   nvidia-smi : found          ← GPU machine
-   Dockerfile : Dockerfile.gpu
-   Image tag  : smartfield:gpu
-   ```
-   or:
-   ```
-   nvidia-smi : not found      ← CPU-only machine
-   Dockerfile : Dockerfile.cpu
-   Image tag  : smartfield:cpu
-   ```
+---
+
+### Step 2: Install Prerequisites (GPU machines only)
+
+If your machine has an NVIDIA GPU, install the NVIDIA Container Toolkit before building:
+```bash
+make prereqs
+```
+
+This runs `prerequisites.sh`, which:
+- Adds the NVIDIA Container Toolkit apt repository
+- Installs `nvidia-container-toolkit` at a pinned version (`1.19.0-1`)
+- Configures Docker to use the NVIDIA runtime
+- Restarts the Docker daemon
+
+On CPU-only machines, `make prereqs` detects the absence of `nvidia-smi` and exits without making any changes.
+
+> **Note**: `make prereqs` only needs to be run once per machine. Skip it on subsequent deployments.
 
 ---
 
-### Step 2: Build and Start
+### Step 3: Build and Start
 
-Build the images and start both services:
+Build the images and start both services (CPU by default):
 ```bash
 make up
 ```
 
 This single command:
-- Detects GPU availability via `nvidia-smi`
-- Selects `Dockerfile.gpu` or `Dockerfile.cpu` automatically
-- Builds the image (bakes YOLO weights so no internet needed at runtime)
+- Builds using `Dockerfile.cpu` (no GPU required)
+- Bakes YOLO weights into the image — no internet needed at runtime
 - Starts both `smartfield` and `mqtt_subscriber`
+
+To use the GPU image (requires NVIDIA Container Toolkit — see `make prereqs`):
+```bash
+make up-gpu
+```
 
 To run in the background (detached mode):
 ```bash
-make up-detach
+make up-detach       # CPU
+make up-gpu-detach   # GPU
 ```
 
 ---
 
-### Step 3: Verify Deployment
+### Step 4: Verify Deployment
 
 Check that both services are healthy:
 ```bash
@@ -147,7 +154,7 @@ make status
 
 ---
 
-### Step 4: Run a Test Mission
+### Step 5: Run a Test Mission
 
 Before flying live, validate the pipeline in test mode (YOLO runs, drone stays grounded):
 
@@ -248,7 +255,13 @@ Testing the full pipeline without waiting for a camera-trap MQTT event.
      -d '{"lat": 40.008278, "long": -83.017514, "mode_type": "live"}'
    ```
 
-3. Monitor mission progress:
+3. To abort a running mission:
+   ```bash
+   make mission-stop
+   ```
+   This restarts the `smartfield` container, which terminates the active mission immediately.
+
+4. Monitor mission progress:
    ```bash
    make logs-sf
    ```
@@ -317,6 +330,7 @@ Monitoring live RTSP video from the drone, checking service health, triggering m
 - Conda (Anaconda or Miniconda) installed on the host machine
 - An active X11 session (standard on Ubuntu desktop)
 - Both `smartfield` and `mqtt_subscriber` services running (`make up-detach`)
+- Drone connected via SkyController (reachable at `192.168.53.1`)
 
 ### Steps
 
@@ -332,23 +346,25 @@ Monitoring live RTSP video from the drone, checking service health, triggering m
 
    On first run, `make ui` calls `services/ui/run.sh`, which:
    - Creates a `smartfield` conda environment with Python 3.10 (if it doesn't already exist)
-   - Installs system dependencies (`vlc`, Qt XCB runtime libraries)
-   - Installs Python dependencies (`PyQt6`, `python-vlc`, `requests`, `psutil`, `toml`)
+   - Installs system dependencies (`libegl1`, Qt XCB runtime libraries, `fonts-noto-color-emoji`)
+   - Installs Python dependencies (`PyQt6`, `opencv-python-headless`, `requests`, `psutil`, `toml`)
    - Launches `dashboard.py` from the smartfield root directory
 
    Subsequent runs skip environment creation and start immediately.
 
 3. The dashboard window opens with:
-   - **Live Video**: RTSP stream from the drone rendered via VLC into the left panel
+   - **Live Video**: RTSP stream from the drone captured via OpenCV + FFmpeg (UDP transport) and rendered into the left panel. Enter the stream URL and click **Connect**.
    - **Service Health**: Pulsing green/red indicators for `smartfield` and `mqtt_subscriber`
-   - **Detection-to-Documentation Pipeline**: Visual stage tracker (MQTT → Trigger → Takeoff → Track → Land → Log)
-   - **Mission Config**: Editable lat/lon and mode_type fields with a Save Config button
-   - **Log Terminal**: Real-time log tail from `smartfield` with INFO / WARNING / ERROR filter tabs
-   - **Metrics**: CPU, RAM, and GPU usage bars updated every 5 seconds
+   - **Detection-to-Documentation Pipeline**: Visual stage tracker (Camera Trap → MQTT → Navigate → Track → RTB)
+   - **Mission Config**: Editable lat/lon and mode_type fields with Save Config and Trigger Mission buttons
+   - **Log Terminal**: Real-time log tail from `smartfield` with ALL / INFO / WARNING / ERROR filter tabs
+   - **Metrics**: CPU, RAM, and GPU usage bars updated every second
 
 ### Notes
 - The dashboard connects to `smartfield` at `http://localhost:9988` and `mqtt_subscriber` at `http://localhost:9987`. Both services must be running for health polling to show green.
 - The RTSP URL defaults to `rtsp://192.168.53.1/live` (Parrot ANAFI via SkyController). Override with the `RTSP_URL` environment variable if your setup differs.
+- The video stack uses **OpenCV with FFmpeg over UDP**. TCP transport is not supported by the drone's RTSP server — do not change the transport mode.
+- Emoji rendering requires `fonts-noto-color-emoji` to be installed in the container (included in the Dockerfile).
 - To run the dashboard as a Docker container instead of natively, use `docker compose up ui` — but ensure `xhost +local:docker` is run first and `DISPLAY` is set in your shell.
 
 ---
@@ -376,16 +392,16 @@ make export-cpu
 
 **At the field site (no internet required)**:
 
-Copy the appropriate `.tar.gz` to the target machine, then load it:
+Copy the appropriate `.tar.gz` to the target machine, then load it manually:
 ```bash
-make load
+docker load < smartfield-cpu.tar.gz   # CPU-only machine
+docker load < smartfield-gpu.tar.gz   # GPU machine
 ```
-
-`make load` automatically detects the hardware (`nvidia-smi`) and loads the correct tarball. No flags needed.
 
 Start the system normally after loading:
 ```bash
-make up-detach
+make up-detach       # CPU
+make up-gpu-detach   # GPU
 ```
 
 ---
@@ -482,7 +498,7 @@ Smartfield is built around a single architectural proposition: detection and doc
 | **smartfield** | Mission orchestrator; connects the drone, sequences missions, coordinates YOLO tracking | FastAPI + SoftwarePilot |
 | **OpenPassLite** | GPS-based flight mission library (LTT, RTB, TAKEOFF, LAND) | SoftwarePilot / Olympe |
 | **WildWings** | Computer vision tracking layer; runs YOLO on the live video stream | Ultralytics + OpenCV |
-| **Field Dashboard** | Native desktop GUI for live video monitoring, mission control, and log inspection | PyQt6 + python-vlc |
+| **Field Dashboard** | Native desktop GUI for live video monitoring, mission control, and log inspection | PyQt6 + OpenCV (FFmpeg/UDP) |
 | **Parrot ANAFI** | Autonomous aerial observation platform | Hardware |
 
 ### The Detection-to-Documentation Pipeline
@@ -581,11 +597,11 @@ The image build system is bifurcated to support both GPU-equipped workstations a
 | `Dockerfile.gpu` | `nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04` | Default CUDA wheel | ~2 GB |
 | `Dockerfile.cpu` | `ubuntu:22.04` | [PyTorch CPU wheel index](https://download.pytorch.org/whl/cpu) | ~800 MB |
 
-The Makefile detects the hardware at `make` invocation time — not at container runtime — via `nvidia-smi`. The correct Dockerfile and image tag are selected automatically:
+The Makefile defaults to CPU. GPU is an explicit opt-in — no auto-detection:
 
-```makefile
-DOCKERFILE        := $(shell nvidia-smi > /dev/null 2>&1 && echo Dockerfile.gpu || echo Dockerfile.cpu)
-SMARTFIELD_IMAGE  := $(shell nvidia-smi > /dev/null 2>&1 && echo smartfield:gpu || echo smartfield:cpu)
+```bash
+make up          # always uses Dockerfile.cpu → smartfield:cpu
+make up-gpu      # always uses Dockerfile.gpu → smartfield:gpu
 ```
 
 Both Dockerfiles use `ubuntu:22.04` as their base lineage (the GPU build adds the CUDA runtime on top). This choice is intentional: Olympe ships pre-compiled C libraries built against Ubuntu 22.04 glibc. Using a Debian-based Python image (`python:3.10-slim`) causes binary incompatibility with Olympe's bundled dependencies.

@@ -1,4 +1,4 @@
 [mission]
 lat = 0.0
 long = 0.0
-mode_type = "live"
+mode_type = "test"

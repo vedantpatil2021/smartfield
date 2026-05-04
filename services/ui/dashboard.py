@@ -23,10 +23,10 @@ from datetime import datetime
 from pathlib import Path
 from dataclasses import dataclass
 
+import cv2
 import requests
 import psutil
 import toml
-import vlc
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -35,11 +35,11 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import (
     Qt, QTimer, QThread, pyqtSignal, QPropertyAnimation,
-    QEasingCurve, QRect, pyqtProperty,
+    QEasingCurve, pyqtProperty,
 )
 from PyQt6.QtGui import (
     QFont, QColor, QTextCursor, QPainter, QPen, QBrush,
-    QRadialGradient, QLinearGradient, QPalette,
+    QImage, QPixmap,
 )
 
 # ── paths ─────────────────────────────────────────────────────────────────────
@@ -182,7 +182,7 @@ QPushButton#logtab {{
     border: none;
     border-bottom: 2px solid transparent;
     border-radius: 0px;
-    color: #6a7d62;
+    color: {TEXT_MUTED};
     font-family: {FONT_MONO};
     font-size: 9px;
     font-weight: 500;
@@ -190,13 +190,13 @@ QPushButton#logtab {{
     padding: 4px 10px;
     min-height: 24px;
 }}
-QPushButton#logtab:hover {{ color: #9aae90; }}
+QPushButton#logtab:hover {{ color: {TEXT_DIM}; }}
 QPushButton#logtab_active {{
     background-color: transparent;
     border: none;
-    border-bottom: 2px solid #6dbb6d;
+    border-bottom: 2px solid {GREEN_DIM};
     border-radius: 0px;
-    color: #6dbb6d;
+    color: {GREEN_DIM};
     font-family: {FONT_MONO};
     font-size: 9px;
     font-weight: 600;
@@ -217,13 +217,13 @@ QProgressBar::chunk {{ border-radius: 3px; background-color: {GREEN_DIM}; }}
 
 /* ── text edit (log terminal) ── */
 QTextEdit {{
-    background-color: #111710;
+    background-color: {BG_PANEL};
     border: none;
-    color: #ddebd0;
+    color: {TEXT};
     font-family: {FONT_MONO};
     font-size: 11px;
     padding: 8px 6px;
-    selection-background-color: #2e4028;
+    selection-background-color: {GREEN_BG};
 }}
 
 /* ── scrollbars ── */
@@ -295,8 +295,13 @@ class MetricsWorker(QThread):
     updated = pyqtSignal(float, float, float)
 
     def run(self):
+        psutil.cpu_percent()  # prime — first call always returns 0.0
         while not self.isInterruptionRequested():
-            cpu = psutil.cpu_percent(interval=1)
+            for _ in range(30):  # 3 s in 100 ms chunks
+                if self.isInterruptionRequested():
+                    return
+                self.msleep(100)
+            cpu = psutil.cpu_percent()  # non-blocking: measures since last call
             ram = psutil.virtual_memory().percent
             gpu = self._gpu()
             self.updated.emit(cpu, ram, gpu)
@@ -329,7 +334,10 @@ class HealthWorker(QThread):
                 except Exception:
                     result[name] = False
             self.updated.emit(result)
-            self.msleep(5000)
+            for _ in range(50):  # 5 s in 100 ms chunks
+                if self.isInterruptionRequested():
+                    return
+                self.msleep(100)
 
 
 class LogWatcher(QThread):
@@ -370,6 +378,57 @@ class LogWatcher(QThread):
                         break
         except Exception:
             pass
+
+class MissionWorker(QThread):
+    done  = pyqtSignal(dict)
+    error = pyqtSignal(str)
+
+    def __init__(self, url: str, mode: str):
+        super().__init__()
+        self._url  = url
+        self._mode = mode
+
+    def run(self):
+        try:
+            r = requests.post(
+                f"{self._url}/api/v1/mission/run",
+                json={"mode_type": self._mode},
+                timeout=(5, 300),
+            )
+            self.done.emit(r.json())
+        except requests.exceptions.ConnectionError:
+            self.error.emit("Cannot reach smartfield — is the service running?")
+        except Exception as e:
+            self.error.emit(f"Error: {e}")
+
+
+class VideoWorker(QThread):
+    frame_ready = pyqtSignal(QImage)
+    error       = pyqtSignal(str)
+
+    def __init__(self, url: str):
+        super().__init__()
+        self._url = url
+
+    def run(self):
+        os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;udp"
+        cap = cv2.VideoCapture(self._url, cv2.CAP_FFMPEG)
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        if not cap.isOpened():
+            self.error.emit(f"Cannot open stream: {self._url}")
+            return
+        while not self.isInterruptionRequested():
+            ret, frame = cap.read()
+            if not ret:
+                self.error.emit("Stream ended or lost.")
+                break
+            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            h, w, ch = rgb.shape
+            img = QImage(rgb.data, w, h, ch * w, QImage.Format.Format_RGB888)
+            self.frame_ready.emit(img.copy())
+            self.msleep(66)  # ~15 fps cap — keeps main thread free
+        cap.release()
+
 
 # ── custom widgets ────────────────────────────────────────────────────────────
 
@@ -511,12 +570,6 @@ class PipelineStep(QWidget):
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.setMinimumHeight(60)
 
-        # shimmer timer for active state (approximates CSS shimmer sweep)
-        self._shimmer_timer = QTimer(self)
-        self._shimmer_timer.setInterval(600)
-        self._shimmer_timer.timeout.connect(self._shimmer_tick)
-        self._shimmer_phase = False
-
         row = QHBoxLayout(self)
         row.setContentsMargins(14, 10, 14, 10)
         row.setSpacing(12)
@@ -542,24 +595,10 @@ class PipelineStep(QWidget):
 
     def set_state(self, state: str):
         self._state = state
-        if state == self.ACTIVE:
-            self._shimmer_timer.start()
-        else:
-            self._shimmer_timer.stop()
-            self._shimmer_phase = False
-        self._refresh()
-
-    def _shimmer_tick(self):
-        self._shimmer_phase = not self._shimmer_phase
         self._refresh()
 
     def _refresh(self):
         bg, border, icon_c, icon, title_c, sub_c = self._CONFIG[self._state]
-
-        # subtle shimmer: alternate between two bg shades when active
-        if self._state == self.ACTIVE and self._shimmer_phase:
-            bg = "#fff8ee"
-
         self._bubble.setText(icon)
         self._bubble.setStyleSheet(
             f"background:{bg}; color:{icon_c};"
@@ -580,6 +619,7 @@ class MetricBar(QWidget):
     def __init__(self, label: str, base_color: str = GREEN_DIM):
         super().__init__()
         self._base = base_color
+        self._current_color = base_color
         row = QHBoxLayout(self)
         row.setContentsMargins(0, 4, 0, 4)
         row.setSpacing(10)
@@ -613,7 +653,10 @@ class MetricBar(QWidget):
         v = int(value)
         self._bar.setValue(v)
         self._pct.setText(f"{v}%")
-        self._set_color(RED if v > 85 else AMBER if v > 65 else self._base)
+        new_color = RED if v > 85 else AMBER if v > 65 else self._base
+        if new_color != self._current_color:
+            self._set_color(new_color)
+            self._current_color = new_color
 
     def _set_color(self, c: str):
         self._bar.setStyleSheet(
@@ -634,13 +677,13 @@ class LogTerminal(QWidget):
     """Scrollable log viewer with ALL / INFO / WARNING / ERROR filter tabs."""
 
     _LEVEL_COLOR = {
-        "INFO":    "#7dd87d",
-        "WARNING": "#f0c050",
-        "ERROR":   "#f08080",
-        "DEBUG":   "#8aaa80",
+        "INFO":    GREEN,
+        "WARNING": AMBER,
+        "ERROR":   RED,
+        "DEBUG":   TEXT_DIM,
     }
-    _TS_COLOR  = "#7a9a70"
-    _MSG_COLOR = "#ccdec0"
+    _TS_COLOR  = TEXT_MUTED
+    _MSG_COLOR = TEXT
 
     def __init__(self):
         super().__init__()
@@ -656,7 +699,7 @@ class LogTerminal(QWidget):
         # filter tabs row
         tab_bar = QWidget()
         tab_bar.setStyleSheet(
-            "background:#1a2116; border-bottom:1px solid #2e3a28;"
+            f"background:{BG_INPUT}; border-bottom:1px solid {BORDER};"
         )
         tab_row = QHBoxLayout(tab_bar)
         tab_row.setContentsMargins(8, 0, 8, 0)
@@ -675,7 +718,7 @@ class LogTerminal(QWidget):
         clear_btn.setFixedHeight(24)
         clear_btn.setFont(QFont("", 10))
         clear_btn.setStyleSheet(
-            "background:#2e3a2a; border:1px solid #3a4434; color:#6a7d62;"
+            f"background:{BG_PANEL}; border:1px solid {BORDER}; color:{TEXT_MUTED};"
             " border-radius:4px; font-size:10px;"
             " padding:0px;"
         )
@@ -710,9 +753,13 @@ class LogTerminal(QWidget):
         self._view.clear()
 
     def add_lines(self, lines: list[str]):
-        for line in lines:
-            entry = self._parse(line)
-            self._entries.append(entry)
+        new_entries = [self._parse(line) for line in lines]
+        self._entries.extend(new_entries)
+        if len(self._entries) > 500:
+            self._entries = self._entries[-500:]
+            self._render()
+            return
+        for entry in new_entries:
             if self._filter == "ALL" or entry.level == self._filter:
                 self._append_entry(entry)
         self._view.moveCursor(QTextCursor.MoveOperation.End)
@@ -731,29 +778,27 @@ class LogTerminal(QWidget):
 
         return LogEntry(ts=ts, level=level, message=msg, raw=line)
 
+    def _entry_html(self, entry: LogEntry) -> str:
+        lvl_color = self._LEVEL_COLOR.get(entry.level, self._TS_COLOR)
+        return (
+            f'<span style="color:{self._TS_COLOR}; font-family:monospace; font-size:10px;">{entry.ts}</span>'
+            f'&nbsp;<span style="color:{lvl_color}; font-family:monospace; font-size:10px; font-weight:600;">{entry.level}</span>'
+            f'&nbsp;<span style="color:{self._MSG_COLOR}; font-family:monospace; font-size:11px;">{entry.message}</span>'
+        )
+
     def _render(self):
-        self._view.clear()
-        for entry in self._entries:
-            if self._filter == "ALL" or entry.level == self._filter:
-                self._append_entry(entry)
+        self._view.setHtml(
+            "<br>".join(
+                self._entry_html(e)
+                for e in self._entries
+                if self._filter == "ALL" or e.level == self._filter
+            )
+        )
         self._view.moveCursor(QTextCursor.MoveOperation.End)
 
     def _append_entry(self, entry: LogEntry):
-        lvl_color = self._LEVEL_COLOR.get(entry.level, self._TS_COLOR)
-        html = (
-            f'<table width="100%" cellspacing="0" cellpadding="0">'
-            f'<tr>'
-            f'<td style="white-space:nowrap; width:130px; color:{self._TS_COLOR};'
-            f'    font-family:monospace; font-size:10px; padding-right:8px;">'
-            f'{entry.ts}</td>'
-            f'<td style="white-space:nowrap; width:58px; color:{lvl_color};'
-            f'    font-family:monospace; font-size:10px; font-weight:600;">'
-            f'{entry.level}</td>'
-            f'<td style="color:{self._MSG_COLOR}; font-family:monospace; font-size:11px;">'
-            f'{entry.message}</td>'
-            f'</tr></table>'
-        )
-        self._view.insertHtml(html)
+        self._view.moveCursor(QTextCursor.MoveOperation.End)
+        self._view.insertHtml(self._entry_html(entry))
         self._view.insertHtml("<br>")
 
 # ── main window ───────────────────────────────────────────────────────────────
@@ -765,8 +810,7 @@ class SmartfieldDashboard(QMainWindow):
         self.setWindowTitle("Smartfield — Field Operations Dashboard")
         self.setMinimumSize(1320, 840)
 
-        self._vlc_instance: vlc.Instance | None = None
-        self._vlc_player:   vlc.MediaPlayer | None = None
+        self._video_worker: VideoWorker | None = None
         self._stage_keys  = [s[0] for s in STAGES]
         self._stage_index = -1
         self._connectors: list[PipelineConnector] = []
@@ -909,14 +953,15 @@ class SmartfieldDashboard(QMainWindow):
         v.setContentsMargins(14, 20, 14, 14)
         v.setSpacing(10)
 
-        self._vlc_surface = QFrame()
-        self._vlc_surface.setStyleSheet(
+        self._video_label = QLabel()
+        self._video_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._video_label.setStyleSheet(
             "background:#0e1108; border-radius:6px; border:1px solid #ddd9cf;"
         )
-        self._vlc_surface.setSizePolicy(
+        self._video_label.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
         )
-        self._vlc_surface.setMinimumHeight(260)
+        self._video_label.setMinimumHeight(260)
 
         self._no_signal = QLabel("NO SIGNAL")
         self._no_signal.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -925,10 +970,10 @@ class SmartfieldDashboard(QMainWindow):
             " letter-spacing:4px; background:transparent;"
             f" font-family:{FONT_MONO};"
         )
-        ph = QVBoxLayout(self._vlc_surface)
+        ph = QVBoxLayout(self._video_label)
         ph.addWidget(self._no_signal)
 
-        v.addWidget(self._vlc_surface, 1)
+        v.addWidget(self._video_label, 1)
 
         ctrl = QHBoxLayout()
         ctrl.setSpacing(8)
@@ -1103,23 +1148,32 @@ class SmartfieldDashboard(QMainWindow):
             self._set_status("Enter an RTSP URL first.", error=True)
             return
         self._stream_stop()
-        try:
-            self._vlc_instance = vlc.Instance("--no-xlib", "--quiet")
-            self._vlc_player   = self._vlc_instance.media_player_new()
-            media = self._vlc_instance.media_new(url)
-            self._vlc_player.set_media(media)
-            self._vlc_player.set_xwindow(int(self._vlc_surface.winId()))
-            self._no_signal.hide()
-            self._vlc_player.play()
-            self._set_status(f"Connecting: {url}")
-        except Exception as exc:
-            self._set_status(f"VLC error: {exc}", error=True)
+        self._no_signal.hide()
+        self._video_worker = VideoWorker(url)
+        self._video_worker.frame_ready.connect(self._on_frame)
+        self._video_worker.error.connect(self._on_stream_error)
+        self._video_worker.start()
+        self._set_status(f"Connecting: {url}")
+
+    def _on_frame(self, img: QImage):
+        pix = QPixmap.fromImage(img).scaled(
+            self._video_label.size(),
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.FastTransformation,
+        )
+        self._video_label.setPixmap(pix)
+
+    def _on_stream_error(self, msg: str):
+        self._stream_stop()
+        self._set_status(msg, error=True)
 
     def _stream_stop(self):
-        if self._vlc_player:
-            self._vlc_player.stop()
-            self._vlc_player   = None
-            self._vlc_instance = None
+        if self._video_worker:
+            self._video_worker.requestInterruption()
+            self._video_worker.quit()
+            self._video_worker.wait(1000)
+            self._video_worker = None
+        self._video_label.setPixmap(QPixmap())
         self._no_signal.show()
 
     # ── config ────────────────────────────────────────────────────────────────
@@ -1159,23 +1213,22 @@ class SmartfieldDashboard(QMainWindow):
     # ── mission trigger ───────────────────────────────────────────────────────
 
     def _trigger_mission(self):
-        mode = self._mode_box.currentText()
-        try:
-            r = requests.post(
-                f"{SF_URL}/api/v1/mission/run",
-                json={"mode_type": mode}, timeout=10,
-            )
-            data = r.json()
-            if data.get("success"):
-                self._set_status(f"Mission started: {data['data'].get('mission_id', '—')}")
-                self._pipeline_reset()
-                self._pipeline_advance("camera")
-            else:
-                self._set_status(f"Rejected: {data.get('error')}", error=True)
-        except requests.exceptions.ConnectionError:
-            self._set_status("Cannot reach smartfield — is the service running?", error=True)
-        except Exception as exc:
-            self._set_status(f"Error: {exc}", error=True)
+        if hasattr(self, "_mission_w") and self._mission_w.isRunning():
+            self._set_status("Mission already in progress.", error=True)
+            return
+        self._set_status("Triggering mission…")
+        self._mission_w = MissionWorker(SF_URL, self._mode_box.currentText())
+        self._mission_w.done.connect(self._on_mission_response)
+        self._mission_w.error.connect(lambda msg: self._set_status(msg, error=True))
+        self._mission_w.start()
+
+    def _on_mission_response(self, data: dict):
+        if data.get("success"):
+            self._set_status(f"Mission started: {data['data'].get('mission_id', '—')}")
+            self._pipeline_reset()
+            self._pipeline_advance("camera")
+        else:
+            self._set_status(f"Rejected: {data.get('error')}", error=True)
 
     # ── pipeline ──────────────────────────────────────────────────────────────
 
@@ -1261,11 +1314,15 @@ class SmartfieldDashboard(QMainWindow):
 
     def closeEvent(self, event):
         self._stream_stop()
+        if hasattr(self, "_mission_w") and self._mission_w.isRunning():
+            self._mission_w.done.disconnect()
+            self._mission_w.error.disconnect()
         for w in (self._metrics_w, self._health_w, self._log_w):
             w.requestInterruption()
             w.quit()
             w.wait(1000)
         event.accept()
+
 
 
 # ── entry point ───────────────────────────────────────────────────────────────
