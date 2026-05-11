@@ -18,12 +18,12 @@ Environment overrides:
 import os
 import re
 import sys
-import subprocess
+import html as _html
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 from dataclasses import dataclass
 
-import cv2
 import requests
 import psutil
 import toml
@@ -292,7 +292,7 @@ LOG_STAGE_MAP = {
 # ── workers ───────────────────────────────────────────────────────────────────
 
 class MetricsWorker(QThread):
-    updated = pyqtSignal(float, float, float)
+    updated = pyqtSignal(float, float)
 
     def run(self):
         psutil.cpu_percent()  # prime — first call always returns 0.0
@@ -303,36 +303,28 @@ class MetricsWorker(QThread):
                 self.msleep(100)
             cpu = psutil.cpu_percent()  # non-blocking: measures since last call
             ram = psutil.virtual_memory().percent
-            gpu = self._gpu()
-            self.updated.emit(cpu, ram, gpu)
-
-    @staticmethod
-    def _gpu() -> float:
-        try:
-            raw = subprocess.check_output(
-                ["nvidia-smi", "--query-gpu=utilization.gpu",
-                 "--format=csv,noheader,nounits"], timeout=2,
-            ).decode().strip().split("\n")
-            return float(raw[0])
-        except Exception:
-            return -1.0
+            self.updated.emit(cpu, ram)
 
 
 class HealthWorker(QThread):
     updated = pyqtSignal(dict)
 
     def run(self):
+        def _check(name: str, url: str) -> tuple[str, bool]:
+            try:
+                r = requests.get(f"{url}/health", timeout=3)
+                return name, (
+                    r.status_code == 200
+                    and r.json().get("data", {}).get("status") == "ok"
+                )
+            except Exception:
+                return name, False
+
         while not self.isInterruptionRequested():
-            result = {}
-            for name, url in [("smartfield", SF_URL), ("subscriber", SUB_URL)]:
-                try:
-                    r = requests.get(f"{url}/health", timeout=3)
-                    result[name] = (
-                        r.status_code == 200
-                        and r.json().get("data", {}).get("status") == "ok"
-                    )
-                except Exception:
-                    result[name] = False
+            with ThreadPoolExecutor(max_workers=2) as ex:
+                sf  = ex.submit(_check, "smartfield", SF_URL)
+                sub = ex.submit(_check, "subscriber", SUB_URL)
+                result = dict([sf.result(), sub.result()])
             self.updated.emit(result)
             for _ in range(50):  # 5 s in 100 ms chunks
                 if self.isInterruptionRequested():
@@ -411,6 +403,11 @@ class VideoWorker(QThread):
         self._url = url
 
     def run(self):
+        try:
+            import cv2
+        except ImportError:
+            self.error.emit("OpenCV (cv2) is not installed.")
+            return
         os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;udp"
         cap = cv2.VideoCapture(self._url, cv2.CAP_FFMPEG)
         cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
@@ -670,7 +667,6 @@ class LogEntry:
     ts:      str
     level:   str
     message: str
-    raw:     str
 
 
 class LogTerminal(QWidget):
@@ -687,8 +683,7 @@ class LogTerminal(QWidget):
 
     def __init__(self):
         super().__init__()
-        self._entries: list[LogEntry] = []
-        self._filter  = "ALL"
+        self._filter = "ALL"
         self._build()
 
     def _build(self):
@@ -729,6 +724,7 @@ class LogTerminal(QWidget):
 
         self._view = QTextEdit()
         self._view.setReadOnly(True)
+        self._view.document().setMaximumBlockCount(2000)
         self._view.setPlaceholderText("Waiting for mission activity…")
         v.addWidget(self._view)
 
@@ -737,7 +733,7 @@ class LogTerminal(QWidget):
     def _set_filter(self, f: str):
         self._filter = f
         self._update_tabs()
-        self._render()
+        self._view.clear()
 
     def _update_tabs(self):
         for label, btn in self._tabs.items():
@@ -749,17 +745,10 @@ class LogTerminal(QWidget):
             btn.style().polish(btn)
 
     def _clear(self):
-        self._entries.clear()
         self._view.clear()
 
     def add_lines(self, lines: list[str]):
-        new_entries = [self._parse(line) for line in lines]
-        self._entries.extend(new_entries)
-        if len(self._entries) > 500:
-            self._entries = self._entries[-500:]
-            self._render()
-            return
-        for entry in new_entries:
+        for entry in (self._parse(line) for line in lines):
             if self._filter == "ALL" or entry.level == self._filter:
                 self._append_entry(entry)
         self._view.moveCursor(QTextCursor.MoveOperation.End)
@@ -776,25 +765,16 @@ class LogTerminal(QWidget):
             msg = line[m_lvl.end():].strip().lstrip(":").strip()
             msg = re.sub(r"^\S+:\s*", "", msg)   # strip logger name
 
-        return LogEntry(ts=ts, level=level, message=msg, raw=line)
+        return LogEntry(ts=ts, level=level, message=msg)
 
     def _entry_html(self, entry: LogEntry) -> str:
         lvl_color = self._LEVEL_COLOR.get(entry.level, self._TS_COLOR)
+        msg = _html.escape(entry.message)
         return (
             f'<span style="color:{self._TS_COLOR}; font-family:monospace; font-size:10px;">{entry.ts}</span>'
             f'&nbsp;<span style="color:{lvl_color}; font-family:monospace; font-size:10px; font-weight:600;">{entry.level}</span>'
-            f'&nbsp;<span style="color:{self._MSG_COLOR}; font-family:monospace; font-size:11px;">{entry.message}</span>'
+            f'&nbsp;<span style="color:{self._MSG_COLOR}; font-family:monospace; font-size:11px;">{msg}</span>'
         )
-
-    def _render(self):
-        self._view.setHtml(
-            "<br>".join(
-                self._entry_html(e)
-                for e in self._entries
-                if self._filter == "ALL" or e.level == self._filter
-            )
-        )
-        self._view.moveCursor(QTextCursor.MoveOperation.End)
 
     def _append_entry(self, entry: LogEntry):
         self._view.moveCursor(QTextCursor.MoveOperation.End)
@@ -816,6 +796,7 @@ class SmartfieldDashboard(QMainWindow):
         self._connectors: list[PipelineConnector] = []
 
         self._build_ui()
+        self._load_config()
         self._start_workers()
 
         self._clock = QTimer(self)
@@ -984,21 +965,11 @@ class SmartfieldDashboard(QMainWindow):
 
         btn_conn = QPushButton("▶  Connect")
         btn_conn.setFixedWidth(110)
-        btn_conn.setStyleSheet(
-            f"background:#2d5c1e; color:#ffffff; border:none; border-radius:5px;"
-            f" font-weight:600; font-size:13px; min-height:32px;"
-            f" padding:7px 16px;"
-        )
         btn_conn.clicked.connect(self._stream_connect)
 
         btn_stop = QPushButton("■")
         btn_stop.setObjectName("secondary")
         btn_stop.setFixedWidth(50)
-        btn_stop.setStyleSheet(
-            f"background:#2d5c1e; color:#ffffff; border:none; border-radius:5px;"
-            f" font-weight:600; font-size:13px; min-height:32px;"
-            f" padding:7px 16px;"
-        )
         btn_stop.setToolTip("Stop stream")
         btn_stop.clicked.connect(self._stream_stop)
 
@@ -1077,8 +1048,7 @@ class SmartfieldDashboard(QMainWindow):
         v.setSpacing(0)
         self._cpu_bar = MetricBar("CPU", GREEN_DIM)
         self._ram_bar = MetricBar("RAM", BLUE)
-        self._gpu_bar = MetricBar("GPU", "#7c4dac")
-        for bar in (self._cpu_bar, self._ram_bar, self._gpu_bar):
+        for bar in (self._cpu_bar, self._ram_bar):
             v.addWidget(bar)
         return box
 
@@ -1121,18 +1091,10 @@ class SmartfieldDashboard(QMainWindow):
         hint.setFont(QFont("", 11))
         v.addWidget(hint)
 
-        self._load_config()
-
-        _btn_style = (
-            "background:#2d5c1e; color:#ffffff; border:none; border-radius:5px;"
-            " font-weight:600; font-size:13px; min-height:32px; padding:7px 16px;"
-        )
         btn_row = QHBoxLayout()
         btn_row.setSpacing(8)
         save_btn = QPushButton("💾  Save Config")
         run_btn  = QPushButton("🚀  Trigger Mission")
-        save_btn.setStyleSheet(_btn_style)
-        run_btn.setStyleSheet(_btn_style)
         save_btn.clicked.connect(self._save_config)
         run_btn.clicked.connect(self._trigger_mission)
         btn_row.addWidget(save_btn)
@@ -1291,10 +1253,9 @@ class SmartfieldDashboard(QMainWindow):
         self._log_w.stage_hit.connect(self._pipeline_advance)
         self._log_w.start()
 
-    def _on_metrics(self, cpu: float, ram: float, gpu: float):
+    def _on_metrics(self, cpu: float, ram: float):
         self._cpu_bar.update_value(cpu)
         self._ram_bar.update_value(ram)
-        self._gpu_bar.update_value(gpu)
 
     def _on_health(self, status: dict):
         self._sf_dot.set_online(status.get("smartfield", False))
@@ -1317,6 +1278,7 @@ class SmartfieldDashboard(QMainWindow):
         if hasattr(self, "_mission_w") and self._mission_w.isRunning():
             self._mission_w.done.disconnect()
             self._mission_w.error.disconnect()
+            self._mission_w.wait(2000)
         for w in (self._metrics_w, self._health_w, self._log_w):
             w.requestInterruption()
             w.quit()
@@ -1328,9 +1290,26 @@ class SmartfieldDashboard(QMainWindow):
 # ── entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    import traceback
+    from PyQt6.QtWidgets import QMessageBox
+
+    def _excepthook(exc_type, exc_value, exc_tb):
+        text = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
+        dlg = QMessageBox()
+        dlg.setIcon(QMessageBox.Icon.Critical)
+        dlg.setWindowTitle("Smartfield — Fatal Error")
+        dlg.setText("An unexpected error occurred and the dashboard must close.")
+        dlg.setDetailedText(text)
+        dlg.exec()
+        sys.exit(1)
+
+    sys.excepthook = _excepthook
+
     app = QApplication(sys.argv)
     app.setStyleSheet(STYLESHEET)
     app.setApplicationName("Smartfield Dashboard")
     window = SmartfieldDashboard()
     window.show()
+    window.raise_()
+    window.activateWindow()
     sys.exit(app.exec())
