@@ -326,7 +326,7 @@ class HealthWorker(QThread):
                 sub = ex.submit(_check, "subscriber", SUB_URL)
                 result = dict([sf.result(), sub.result()])
             self.updated.emit(result)
-            for _ in range(50):  # 5 s in 100 ms chunks
+            for _ in range(150):  # 15 s in 100 ms chunks
                 if self.isInterruptionRequested():
                     return
                 self.msleep(100)
@@ -344,7 +344,7 @@ class LogWatcher(QThread):
     def run(self):
         while not self.isInterruptionRequested():
             self._poll()
-            self.msleep(800)
+            self.msleep(1500)
 
     def _poll(self):
         logs = sorted(LOGS_DIR.glob("mission_*/mission.log"))
@@ -397,10 +397,18 @@ class MissionWorker(QThread):
 class VideoWorker(QThread):
     frame_ready = pyqtSignal(QImage)
     error       = pyqtSignal(str)
+    status      = pyqtSignal(str)
 
     def __init__(self, url: str):
         super().__init__()
         self._url = url
+
+    def _sleep_interruptible(self, seconds: int) -> bool:
+        for _ in range(seconds * 10):
+            if self.isInterruptionRequested():
+                return False
+            self.msleep(100)
+        return True
 
     def run(self):
         try:
@@ -408,23 +416,41 @@ class VideoWorker(QThread):
         except ImportError:
             self.error.emit("OpenCV (cv2) is not installed.")
             return
+
         os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;udp"
-        cap = cv2.VideoCapture(self._url, cv2.CAP_FFMPEG)
-        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-        if not cap.isOpened():
-            self.error.emit(f"Cannot open stream: {self._url}")
-            return
+        backoff = 1
+
         while not self.isInterruptionRequested():
-            ret, frame = cap.read()
-            if not ret:
-                self.error.emit("Stream ended or lost.")
-                break
-            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            h, w, ch = rgb.shape
-            img = QImage(rgb.data, w, h, ch * w, QImage.Format.Format_RGB888)
-            self.frame_ready.emit(img.copy())
-            self.msleep(66)  # ~15 fps cap — keeps main thread free
-        cap.release()
+            cap = cv2.VideoCapture(self._url, cv2.CAP_FFMPEG)
+            cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+
+            if not cap.isOpened():
+                cap.release()
+                self.status.emit(f"Cannot open stream — retrying in {backoff}s…")
+                if not self._sleep_interruptible(backoff):
+                    return
+                backoff = min(backoff * 2, 30)
+                continue
+
+            backoff = 1
+            self.status.emit("Stream connected.")
+
+            while not self.isInterruptionRequested():
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                h, w, ch = rgb.shape
+                img = QImage(rgb.data, w, h, ch * w, QImage.Format.Format_RGB888)
+                self.frame_ready.emit(img.copy())
+                self.msleep(66)  # ~15 fps cap
+
+            cap.release()
+            if not self.isInterruptionRequested():
+                self.status.emit(f"Stream lost — retrying in {backoff}s…")
+                if not self._sleep_interruptible(backoff):
+                    return
+                backoff = min(backoff * 2, 30)
 
 
 # ── custom widgets ────────────────────────────────────────────────────────────
@@ -952,7 +978,8 @@ class SmartfieldDashboard(QMainWindow):
             f" font-family:{FONT_MONO};"
         )
         ph = QVBoxLayout(self._video_label)
-        ph.addWidget(self._no_signal)
+        ph.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        ph.addWidget(self._no_signal, alignment=Qt.AlignmentFlag.AlignCenter)
 
         v.addWidget(self._video_label, 1)
 
@@ -1113,11 +1140,14 @@ class SmartfieldDashboard(QMainWindow):
         self._no_signal.hide()
         self._video_worker = VideoWorker(url)
         self._video_worker.frame_ready.connect(self._on_frame)
+        self._video_worker.status.connect(self._on_stream_status)
         self._video_worker.error.connect(self._on_stream_error)
         self._video_worker.start()
         self._set_status(f"Connecting: {url}")
 
     def _on_frame(self, img: QImage):
+        if self._no_signal.isVisible():
+            self._no_signal.hide()
         pix = QPixmap.fromImage(img).scaled(
             self._video_label.size(),
             Qt.AspectRatioMode.KeepAspectRatio,
@@ -1125,7 +1155,17 @@ class SmartfieldDashboard(QMainWindow):
         )
         self._video_label.setPixmap(pix)
 
+    def _on_stream_status(self, msg: str):
+        self._set_status(msg, error="retrying" in msg or "lost" in msg)
+        if "retrying" in msg or "lost" in msg:
+            self._video_label.setPixmap(QPixmap())
+            self._no_signal.setText("RECONNECTING…")
+            self._no_signal.show()
+        elif "connected" in msg:
+            self._no_signal.setText("NO SIGNAL")
+
     def _on_stream_error(self, msg: str):
+        # only fatal errors (e.g. OpenCV not installed) reach here
         self._stream_stop()
         self._set_status(msg, error=True)
 
@@ -1133,7 +1173,7 @@ class SmartfieldDashboard(QMainWindow):
         if self._video_worker:
             self._video_worker.requestInterruption()
             self._video_worker.quit()
-            self._video_worker.wait(1000)
+            self._video_worker.wait(2000)
             self._video_worker = None
         self._video_label.setPixmap(QPixmap())
         self._no_signal.show()
@@ -1310,6 +1350,8 @@ if __name__ == "__main__":
     app.setApplicationName("Smartfield Dashboard")
     window = SmartfieldDashboard()
     window.show()
+    app.processEvents()          # flush initial paint so window isn't black on X11
     window.raise_()
     window.activateWindow()
+    app.processEvents()          # flush again after raise/activate
     sys.exit(app.exec())

@@ -367,6 +367,10 @@ Monitoring live RTSP video from the drone, checking service health, triggering m
 - Emoji rendering requires `fonts-noto-color-emoji` to be installed in the container (included in the Dockerfile).
 - To run the dashboard as a Docker container instead of natively, use `docker compose up ui` — but ensure `xhost +local:docker` is run first and `DISPLAY` is set in your shell.
 
+> **Known behaviour — brief black window on startup**: The dashboard may display a fully black window for a few seconds immediately after launch. This is a Qt/X11 initialisation delay — Qt maps the OS window before it has finished painting its first frame. The UI will appear on its own; no action is required. The delay is typically 2–5 seconds and is longer the first time the conda environment runs (libraries are being loaded into memory). It is not a crash.
+
+> **Known behaviour — camera feed goes black / shows RECONNECTING**: If the RTSP stream from the drone cannot be reached (drone not powered on, SkyController not connected, wrong IP), the camera panel shows **RECONNECTING…** and retries automatically with an increasing delay (1 s → 2 s → 4 s → up to 30 s). You do not need to restart the dashboard. Once the drone is powered on and the stream becomes reachable, the video feed resumes without any manual intervention.
+
 ---
 
 ## How to Export Images for Offline Field Deployment

@@ -67,16 +67,19 @@ setup:
 
 # ── Start / Stop ──────────────────────────────────────────────────────────────
 
-up:
+xhost-grant:
+	xhost +local:docker
+
+up: xhost-grant
 	SMARTFIELD_DOCKERFILE=Dockerfile.cpu SMARTFIELD_IMAGE=smartfield:cpu $(COMPOSE) up --build
 
-up-gpu:
+up-gpu: xhost-grant
 	SMARTFIELD_DOCKERFILE=Dockerfile.gpu SMARTFIELD_IMAGE=smartfield:gpu $(COMPOSE) up --build
 
-up-detach:
+up-detach: xhost-grant
 	SMARTFIELD_DOCKERFILE=Dockerfile.cpu SMARTFIELD_IMAGE=smartfield:cpu $(COMPOSE) up --build -d
 
-up-gpu-detach:
+up-gpu-detach: xhost-grant
 	SMARTFIELD_DOCKERFILE=Dockerfile.gpu SMARTFIELD_IMAGE=smartfield:gpu $(COMPOSE) up --build -d
 
 down:
@@ -180,7 +183,7 @@ clean-logs:
 	@rm -rf logs/mission/*
 	@echo "Done."
 
-.PHONY: help setup up up-gpu up-detach up-gpu-detach down restart \
+.PHONY: help setup xhost-grant up up-gpu up-detach up-gpu-detach down restart \
         build build-gpu \
         logs logs-sf logs-mq logs-ui \
         status health \
